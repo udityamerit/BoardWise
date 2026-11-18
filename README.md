@@ -20,7 +20,7 @@ AI features are planned (see the roadmap) and are **not** part of this build.
 
 ## Roadmap
 
-* **More subjects** for the Maharashtra SSC pack: 9 more mocks each for English, History & Political Science, Geography, Hindi and Marathi (Maths and Science already have 10).
+* **More subjects** for the Maharashtra SSC pack: 9 more mocks each for English, Geography, Hindi and Marathi (Maths, Science and History & Political Science already have 10).
 * **Boards section** (done, `js/data/boards.js`, `#/boards`): UP Board, MP Board and Bihar Board have their own pages marked *Coming soon*, with planned subjects and the pattern *as reported by third-party sites* (not verified). No papers exist for them yet. Next step for each: verify the pattern against the board's own model paper, then build mocks.
 * **More boards** (CBSE, ICSE, other state boards): papers are data (`window.PAPERS`), and the board's layout lives in `js/data/config.js`, so a board is a new data pack plus its layout.
 * **Deep agents**: AI tutors and answer evaluators, which need server-side secrets, so they will run as serverless functions beside the static site (see Hosting).
@@ -54,7 +54,7 @@ The site is plain static files, so any static host works. Recommended: **Vercel*
 |---|---|---|
 | Mathematics (Algebra 40 + Geometry 40) | `maths-2025-algebra`, `maths-2025-geometry`, `maths-mock-1` … `maths-mock-10` | 2025 papers: **adapted** from a third-party transcription; 10 mocks: original (mock 1 hand-written, mocks 2–10 generated, see below) |
 | Science & Technology 1 + 2 (40 + 40) | `science-mock-1` … `science-mock-10` | 10 mocks: original (mock 1 hand-written, mocks 2–10 assembled from a chapter question bank, see below); layout **approximate** |
-| History & Political Science (40) | `history-2025-partial`, `history-mock-1` | 2025: **partial, adapted** (marks assumed); mock: original |
+| History & Political Science (40) | `history-2025-partial`, `history-mock-1` … `history-mock-10` | 2025: **partial, adapted** (marks assumed); 10 mocks: original (mock 1 hand-written, mocks 2–10 assembled from a chapter question bank, see below); mark split **approximate** |
 | Geography (28) | `geography-mock-1` | original, layout **approximate** |
 | English, Hindi, Marathi (80 each) | `english-mock-1`, `hindi-mock-1`, `marathi-mock-1` | original, layout **approximate** |
 
@@ -68,6 +68,10 @@ The site is plain static files, so any static host works. Recommended: **Vercel*
 ### How Science mocks 2–10 are made
 
 `js/data/sci-*.js` hold an original question bank per chapter (Part 1: Gravitation, Heat, Electric Current, Refraction, Lenses, Space Missions, Periodic Table, Chemical Reactions, Metallurgy, Carbon Compounds. Part 2: Heredity & Evolution, Life Processes, Animal Classification, Microbiology, Cell Biology & Biotechnology, Environmental Management, Green Energy, Social Health, Disaster Management). `sci-build.js` interleaves the chapters and gives each mock the next block of questions, so every mock covers every chapter, **no question repeats across mocks 2–10 or from mock 1**, and each mock is checked to total 80 marks. Numerical questions are auto-marked with a tolerance; one-word answers are matched against accepted spellings; descriptive answers show a model answer and are **self-marked by the student**. Layout is the approximate one described below. These are practice questions, not board papers.
+
+### How History & Political Science mocks 2–10 are made
+
+`js/data/hist-1.js`, `hist-2.js` and `hist-3.js` hold an original question bank for each of the 9 History chapters (3 MCQ, 3 one-word, 6 two-mark, 4 three-mark, 2 four-mark and 1 passage each); `pol.js` holds the 5 Political Science chapters (4 MCQ, 6 true/false with reasons and 8 three-mark each). `hist-build.js` interleaves the chapters and gives each mock the next block, so **no question repeats across mocks 2–10 or from mock 1**, and each mock totals 40 marks in the Q1–Q9 layout of mock 1. One-word answers are auto-marked against accepted spellings; descriptive answers show a model answer and are **self-marked by the student**. These are practice questions, not board papers.
 
 ### How Maths mocks 2–10 are made
 
