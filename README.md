@@ -1,4 +1,4 @@
-<p align="center"><img src="assets/logo.svg" width="96" alt="BoardWise logo"></p>
+﻿<p align="center"><img src="assets/logo.svg" width="96" alt="BoardWise logo"></p>
 
 # BoardWise
 
@@ -25,7 +25,7 @@ AI features are planned (see the roadmap) and are **not** part of this build.
 
 ## Hosting
 
-The site is plain static files, so any static host works. Recommended: **Vercel** (free tier, deploys from the GitHub repo, preview URL for every branch, and the serverless functions the AI agents will need, in the same project). `vercel.json` is included, so "Import Git Repository" in Vercel is all that is required. A GitHub Pages workflow (`.github/workflows/pages.yml`) is also included as a zero-setup alternative. Whichever host you use, add its domain under Firebase console → Authentication → Settings → *Authorized domains*.
+The site is plain static files, so any static host works. Recommended: **Vercel** (free tier, deploys from the GitHub repo, preview URL for every branch, and the serverless functions the AI agents will need, in the same project). `vercel.json` is included, so "Import Git Repository" in Vercel is all that is required. GitHub Pages also works with no extra files (Settings → Pages → deploy from branch `main`, folder `/`). Whichever host you use, add its domain under Firebase console → Authentication → Settings → *Authorized domains*.
 
 ## Accounts and data (Firebase)
 
