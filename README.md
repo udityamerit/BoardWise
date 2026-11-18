@@ -2,6 +2,8 @@
 
 # BoardWise
 
+**Live:** https://udityamerit.github.io/BoardWise/ · built by [Uditya Narayan Tiwari](https://github.com/udityamerit)
+
 **Board-pattern mock tests, marks, grades and progress reports for school board exams.**
 
 The first board pack is **Maharashtra SSC (Class X, English medium)**, for the exams due Feb–Mar 2027: timed papers in the board's own
@@ -25,7 +27,7 @@ AI features are planned (see the roadmap) and are **not** part of this build.
 
 ## Hosting
 
-The site is plain static files, so any static host works. Recommended: **Vercel** (free tier, deploys from the GitHub repo, preview URL for every branch, and the serverless functions the AI agents will need, in the same project). `vercel.json` is included, so "Import Git Repository" in Vercel is all that is required. GitHub Pages also works with no extra files (Settings → Pages → deploy from branch `main`, folder `/`). Whichever host you use, add its domain under Firebase console → Authentication → Settings → *Authorized domains*.
+The site is plain static files, so any static host works. Recommended: **Vercel** (free tier, deploys from the GitHub repo, preview URL for every branch, and the serverless functions the AI agents will need, in the same project). `vercel.json` is included, so "Import Git Repository" in Vercel is all that is required. GitHub Pages also works with no extra files (Settings → Pages → deploy from branch `main`, folder `/`). Whichever host you use, add its domain (for GitHub Pages: `udityamerit.github.io`) under Firebase console → Authentication → Settings → *Authorized domains*.
 
 ## Accounts and data (Firebase)
 

@@ -164,9 +164,10 @@ function route(keepScroll) {
   document.body.classList.toggle('authed', authed);
   document.body.classList.toggle('testing', authed && a === 'test');
   document.querySelectorAll('[data-nav]').forEach(el => el.classList.toggle('on',
-    (el.dataset.nav === 'home' && (!a || a === 'subject' || a === 'paper')) || (el.dataset.nav === 'boards' && (a === 'boards' || a === 'board')) || el.dataset.nav === a ||
+    (el.dataset.nav === 'home' && (!a || a === 'subject' || a === 'paper')) || (el.dataset.nav === 'boards' && (a === 'boards' || a === 'board')) || (el.dataset.nav === 'about' && a === 'about') || el.dataset.nav === a ||
     (el.dataset.nav === 'progress' && a === 'report') || (el.dataset.nav === 'history' && a === 'result')));
   if (!keepScroll) window.scrollTo(0, 0);
+  if (a === 'about') return viewAbout();
   if (!authed) return viewAuth(a === 'register' || a === 'forgot' ? a : 'login');
   if (a === 'login' || a === 'register' || a === 'forgot') return go('#/');
   if (a === 'profile') return viewProfile();
@@ -222,6 +223,22 @@ function viewHome() {
         <div style="margin-top:8px"><span class="chip">${s.total} marks</span> <span class="chip gray">${PAPERS.filter(p => p.subject === s.key).length} paper(s)</span></div>
       </a>`).join('')}
   </div>`;
+}
+
+/* ---------- about / author ---------- */
+function viewAbout() {
+  const A = window.AUTHOR || {};
+  const links = [A.github ? { label: 'GitHub', url: 'https://github.com/' + A.github } : null, ...(A.links || [])].filter(Boolean);
+  app.innerHTML = `
+  <section class="hero"><h1>About BoardWise</h1><p>Why this site exists and who is building it.</p></section>
+  <div class="card" style="margin-bottom:16px"><h3>Why BoardWise</h3>${(A.why || []).map(t => `<p>${esc(t)}</p>`).join('')}
+    ${(A.principles || []).length ? `<h3>How it is built</h3><ul class="clean">${A.principles.map(t => `<li>${esc(t)}</li>`).join('')}</ul>` : ''}</div>
+  <div class="card"><h3>Author</h3>
+    <p style="font-size:1.1rem;margin:0"><b>${esc(A.name || '')}</b></p>
+    <p class="muted" style="margin-top:2px">${esc(A.role || '')}</p>
+    ${A.bio ? `<p>${esc(A.bio)}</p>` : ''}
+    ${links.length ? `<p>${links.map(l => `<a class="btn sm" href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">${esc(l.label)}</a>`).join(' ')}</p>` : ''}
+    <p class="small muted">BoardWise is an independent project and is not affiliated with any examination board. Found a wrong answer or a typo? Open an issue on <a href="https://github.com/${esc(A.github || '')}/BoardWise/issues" target="_blank" rel="noopener noreferrer">GitHub</a>.</p></div>`;
 }
 
 /* ---------- boards ---------- */
