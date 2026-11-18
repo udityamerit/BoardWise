@@ -208,3 +208,15 @@ body.testing .userbox{display:none}
   .timer{font-size:1.1rem;padding:6px 10px}
 }
 @media print{.userbox,.rvhead .btn{display:none!important}.rev{break-inside:avoid;border:1px solid #ccc}}
+
+/* Paper-structure table: stack each row on phones instead of squeezing four columns */
+@media screen and (max-width:600px){
+  table.struct,table.struct tbody,table.struct tr,table.struct td{display:block;width:100%}
+  table.struct tr:first-child{display:none}
+  table.struct tr{padding:10px 0;border-bottom:1px solid var(--line)}
+  table.struct td{border:0;padding:2px 0}
+  table.struct td.stitle{font-weight:600;margin-bottom:2px}
+  table.struct td[data-l]::before{content:attr(data-l) ": ";color:var(--muted);font-size:.82rem}
+  table.struct td.right{text-align:left}
+  table.struct tr.stotal td:first-child{display:none}
+}

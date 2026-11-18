@@ -343,9 +343,9 @@ function structureTable(P) {
   const rows = groupBySec(flat(P)).map(g => {
     const ms = [...new Set(g.qs.map(q => q.marks))];
     const sm = marksOf(g.qs), n = need(g);
-    return `<tr><td>${esc(g.sec.title)}</td><td>${n < g.qs.length ? `Any <b>${n}</b> of ${g.qs.length}` : `All ${g.qs.length}`}</td><td>${ms.length === 1 ? ms[0] + (ms[0] > 1 ? ' marks' : ' mark') + ' each' : 'mixed'}</td><td class="right"><b>${fmt(sm)}</b></td></tr>`;
+    return `<tr><td class="stitle">${esc(g.sec.title)}</td><td data-l="Choice">${n < g.qs.length ? `Any <b>${n}</b> of ${g.qs.length}` : `All ${g.qs.length}`}</td><td data-l="Marks">${ms.length === 1 ? ms[0] + (ms[0] > 1 ? ' marks' : ' mark') + ' each' : 'mixed'}</td><td class="right" data-l="Section total"><b>${fmt(sm)}</b></td></tr>`;
   }).join('');
-  return `<table class="struct"><tr><th>Question</th><th>Choice</th><th>Marks</th><th class="right">Section total</th></tr>${rows}<tr><td colspan="3"><b>Total</b></td><td class="right"><b>${paperMarks(P)}</b></td></tr></table>`;
+  return `<table class="struct"><tr><th>Question</th><th>Choice</th><th>Marks</th><th class="right">Section total</th></tr>${rows}<tr class="stotal"><td colspan="3"><b>Total</b></td><td class="right" data-l="Total marks"><b>${paperMarks(P)}</b></td></tr></table>`;
 }
 
 function viewInstr(id) {
