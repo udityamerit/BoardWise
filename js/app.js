@@ -164,7 +164,7 @@ function route(keepScroll) {
   document.body.classList.toggle('authed', authed);
   document.body.classList.toggle('testing', authed && a === 'test');
   document.querySelectorAll('[data-nav]').forEach(el => el.classList.toggle('on',
-    (el.dataset.nav === 'home' && (!a || a === 'subject' || a === 'paper')) || el.dataset.nav === a ||
+    (el.dataset.nav === 'home' && (!a || a === 'subject' || a === 'paper')) || (el.dataset.nav === 'boards' && (a === 'boards' || a === 'board')) || el.dataset.nav === a ||
     (el.dataset.nav === 'progress' && a === 'report') || (el.dataset.nav === 'history' && a === 'result')));
   if (!keepScroll) window.scrollTo(0, 0);
   if (!authed) return viewAuth(a === 'register' || a === 'forgot' ? a : 'login');
@@ -179,6 +179,8 @@ function route(keepScroll) {
   if (a === 'progress') return viewProgress();
   if (a === 'report') return viewReport(b);
   if (a === 'pattern') return viewPattern(b);
+  if (a === 'boards') return viewBoards();
+  if (a === 'board') return viewBoard(b);
   viewHome();
 }
 window.addEventListener('hashchange', () => route());
@@ -198,6 +200,7 @@ function viewHome() {
   <section class="hero">
     ${student().name ? `<div class="small" style="opacity:.9;margin-bottom:6px">Welcome back, <b>${esc(student().name)}</b></div>` : ''}
     <h1>Maharashtra SSC (Class X) — practice in the real board format</h1>
+    <div class="small" style="margin:-4px 0 10px"><a href="#/boards" style="color:#fff;text-decoration:underline">Other boards (UP, MP, Bihar…) ›</a></div>
     <p>Timed papers laid out like the board paper: same sections, "attempt any N" choices, marks and time. Instant marking, board-style grading, report cards and progress tracking. Exams expected ${esc(BOARD.examWindow)}.</p>
     <div class="stats">
       <div class="stat"><b>${SUBJECTS.length}</b>subjects</div>
@@ -219,6 +222,38 @@ function viewHome() {
         <div style="margin-top:8px"><span class="chip">${s.total} marks</span> <span class="chip gray">${PAPERS.filter(p => p.subject === s.key).length} paper(s)</span></div>
       </a>`).join('')}
   </div>`;
+}
+
+/* ---------- boards ---------- */
+const boardOf = k => BOARDS.find(b => b.key === k);
+function boardCard(b) {
+  const live = b.status === 'live';
+  return `<a class="card subj" style="--c:${b.color}" href="${live ? '#/' : '#/board/' + b.key}">
+    <div class="ic">${b.icon}</div><h3>${esc(b.name)}</h3>
+    <div class="muted small">${esc(b.full)}</div>
+    <div class="muted small" style="margin-top:6px">${esc(b.blurb)}</div>
+    <div style="margin-top:8px"><span class="chip ${live ? 'ok' : 'gray'}">${live ? 'Live' : 'Coming soon'}</span> <span class="chip gray">${esc(b.medium)}</span>${live ? ` <span class="chip gray">${PAPERS.length} papers</span>` : ''}</div></a>`;
+}
+function viewBoards() {
+  app.innerHTML = `
+  <section class="hero"><h1>Choose your board</h1>
+    <p>BoardWise is built to carry mock tests for more than one board. Maharashtra SSC is live now; the boards below are next. Each board gets its own papers, marking scheme and progress reports.</p></section>
+  <div class="grid g2">${BOARDS.map(boardCard).join('')}</div>
+  <div class="notice"><b>Honest status:</b> only Maharashtra SSC has papers today. For the other boards no question papers have been written yet, and no previous-year paper is claimed. The patterns on each board page are what third-party sites report, not official figures.</div>
+  <h3>Later</h3><p class="muted">${BOARD_ROADMAP.map(x => `<span class="chip gray">${esc(x)}</span>`).join(' ')}</p>`;
+}
+function viewBoard(key) {
+  const b = boardOf(key); if (!b) return viewBoards();
+  if (b.status === 'live') return go('#/');
+  app.innerHTML = `
+  <div class="crumbs"><a href="#/boards">Boards</a> › ${esc(b.name)}</div>
+  <h1>${b.icon} ${esc(b.name)} <span class="chip gray">Coming soon</span></h1>
+  <p class="muted">${esc(b.full)} · ${esc(b.medium)}</p>
+  <div class="notice"><b>No papers yet.</b> Mock tests for this board are not built. When they are, they will be original practice papers in the board's own layout, labelled as mock tests, and never presented as past board papers.</div>
+  <div class="card"><h3>Planned subjects</h3><p>${b.subjects.map(x => `<span class="chip">${esc(x)}</span>`).join(' ')}</p>
+    <h3>Pattern as reported (not verified)</h3><ul class="clean">${b.reported.map(x => `<li>${esc(x)}</li>`).join('')}</ul>
+    <p class="small muted">These points come from third-party education sites that disagree with each other. For the authoritative scheme use the board's own site: <a href="${esc(b.site)}" target="_blank" rel="noopener noreferrer">${esc(b.site.replace(/^https?:\/\//, ''))}</a>.</p></div>
+  <p><a class="btn" href="#/boards">‹ All boards</a> <a class="btn pri" href="#/">Open Maharashtra SSC tests</a></p>`;
 }
 
 function viewSubject(key) {

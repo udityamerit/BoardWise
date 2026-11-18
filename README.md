@@ -19,6 +19,7 @@ AI features are planned (see the roadmap) and are **not** part of this build.
 ## Roadmap
 
 * **More subjects** for the Maharashtra SSC pack: 9 more mocks each for English, History & Political Science, Geography, Hindi and Marathi (Maths and Science already have 10).
+* **Boards section** (done, `js/data/boards.js`, `#/boards`): UP Board, MP Board and Bihar Board have their own pages marked *Coming soon*, with planned subjects and the pattern *as reported by third-party sites* (not verified). No papers exist for them yet. Next step for each: verify the pattern against the board's own model paper, then build mocks.
 * **More boards** (CBSE, ICSE, other state boards): papers are data (`window.PAPERS`), and the board's layout lives in `js/data/config.js`, so a board is a new data pack plus its layout.
 * **Deep agents**: AI tutors and answer evaluators, which need server-side secrets, so they will run as serverless functions beside the static site (see Hosting).
 
