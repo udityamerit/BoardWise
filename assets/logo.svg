@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="BoardWise">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5468f0"/><stop offset="1" stop-color="#2a389f"/></linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="15" fill="url(#bg)"/>
+  <!-- open book -->
+  <path d="M10 25.5c7.5-.5 15 .8 20.5 4.6v19.4c-5.5-3.7-13-4.8-20.5-4.3z" fill="#fff"/>
+  <path d="M54 25.5c-7.5-.5-15 .8-20.5 4.6v19.4c5.5-3.7 13-4.8 20.5-4.3z" fill="#fff" fill-opacity=".86"/>
+  <!-- rising check mark -->
+  <path d="M21 17.5l8.2 8.2L44.5 9.5" fill="none" stroke="#ffc53d" stroke-width="5.2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
