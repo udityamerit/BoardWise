@@ -45,6 +45,9 @@ The site is plain static files, so any static host works. Recommended: **Vercel*
 * **Marking**: MCQ and short answers are auto-marked; written answers are self-marked against the model answer (0 to max, steps of 0.5). Only the best N answers of an "any N" group count.
 * **Scores & grades**: Distinction ≥ 75 %, First Class ≥ 60 %, Second Class ≥ 45 %, Pass Class ≥ 35 % (`BOARD.passPercent`).
 * **Progress dashboard**: score trend, per-subject averages, weak chapters, history of every attempt.
+* **Streaks and activity heatmap**: current and longest day streak, a GitHub-style 52-week heatmap of tests per day, last-14-day test time.
+* **Time and pace**: a live per-question timer and pace hint during the test, then on the result page time used, time per question and section, marks per minute, accuracy, attempt rate, answers changed, slowest questions and pace tips. The progress page adds total study time, time by subject and best time of day.
+* **Safer answer saving**: every answer is time-stamped and merged with the stored copy, so a second tab or a restored phone tab can't overwrite a newer answer; "Clear answer" has an Undo; submitting shows a review of unanswered and flagged questions with jump links.
 * **Report card**: per attempt and overall, printable / save-as-PDF from the browser. **CSV export** of all attempts.
 * **Student profile** (name, school, seat no.) printed on the report cards.
 

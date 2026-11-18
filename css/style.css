@@ -220,3 +220,32 @@ body.testing .userbox{display:none}
   table.struct td.right{text-align:left}
   table.struct tr.stotal td:first-child{display:none}
 }
+
+/* ---- streaks, heatmap, time metrics, submit dialog ---- */
+.heat{overflow-x:auto;padding:2px 0 8px;-webkit-overflow-scrolling:touch}
+.hgrid{display:flex;gap:3px;min-width:max-content}
+.hcol{display:flex;flex-direction:column;gap:3px}
+.hcol b{font-size:10px;height:13px;line-height:13px;color:var(--muted);font-weight:500;white-space:nowrap}
+.hdays span{height:12px;font-size:9px;line-height:12px;color:var(--muted);padding-right:4px}
+.hc{display:block;width:12px;height:12px;border-radius:3px;background:#e9ebf3}
+.hc.l1{background:#c3cdfb}.hc.l2{background:#8fa0f5}.hc.l3{background:#5a6fe8}.hc.l4{background:#2f40c4}
+.hc.off{visibility:hidden}
+.hleg{display:flex;align-items:center;gap:3px;flex-wrap:wrap;margin-top:4px}
+.d14{display:flex;gap:6px;align-items:flex-end;height:78px}
+.d14c{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:3px;min-width:0}
+.d14c i{display:block;width:100%;max-width:22px;border-radius:4px 4px 0 0;background:#e9ebf3}
+.d14c i.on{background:var(--brand)}
+.d14c span{font-size:10px;color:var(--muted)}
+.tstrip{display:flex;gap:2px;align-items:flex-end;height:64px;overflow-x:auto;padding-bottom:2px}
+.tb{flex:1 0 5px;max-width:18px;display:flex;align-items:flex-end;height:100%}
+.tb i{display:block;width:100%;border-radius:2px 2px 0 0;background:#aab0c4}
+.tb.correct i{background:var(--ok)}.tb.wrong i{background:var(--bad)}.tb.self i{background:var(--warn)}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin:0 3px 0 8px;background:#aab0c4}
+.dot.ok{background:var(--ok)}.dot.bad{background:var(--bad)}.dot.warn{background:var(--warn)}
+.pace{margin-top:12px;padding:8px 10px;border-radius:8px;background:var(--brand-l);color:var(--ink)}
+.qtools{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0 2px;min-height:28px}
+.qtools .saved{margin-left:auto;color:var(--ok)}
+.modal{position:fixed;inset:0;z-index:100;background:rgba(15,20,40,.55);display:flex;align-items:center;justify-content:center;padding:16px}
+.mbox{max-width:480px;width:100%;max-height:86vh;overflow:auto}
+.mgap{margin:10px 0}.mq{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+@media print{.modal{display:none}}
