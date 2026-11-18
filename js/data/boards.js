@@ -4,7 +4,7 @@
 window.BOARDS = [
   { key: 'msbshse', name: 'Maharashtra SSC', full: 'Maharashtra State Board (MSBSHSE)', short: 'Maharashtra', state: 'Maharashtra', color: '#3b4fd8', icon: '🏛️',
     status: 'live', levels: [{ name: 'Class X (SSC)', live: true }, { name: 'Class XII (HSC)' }], medium: 'English medium', site: 'https://www.mahahsscboard.in/',
-    blurb: 'Class X: 10 mock tests each for Maths and Science, with English, History, Geography, Hindi and Marathi in progress. Class XII is planned.' },
+    blurb: 'Class X: 10 mock tests each for Maths, Science, History & Political Science, English, Geography, Hindi and Marathi. Class XII is planned.' },
   { key: 'upmsp', name: 'UP Board', full: 'Uttar Pradesh Madhyamik Shiksha Parishad (UPMSP)', short: 'Uttar Pradesh', state: 'Uttar Pradesh', color: '#d9480f', icon: '🪔',
     status: 'planned', levels: [{ name: 'Class X (High School)' }, { name: 'Class XII (Intermediate)' }], medium: 'Hindi + English medium (planned)', site: 'https://upmsp.edu.in/',
     blurb: 'High School board mock tests with an objective (OMR-style) part and a descriptive part.',
