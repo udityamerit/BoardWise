@@ -6,7 +6,7 @@
 
 **Board-pattern mock tests, marks, grades and progress reports for school board exams.**
 
-The first board pack is **Maharashtra SSC (Class X, English medium)**, for the exams due Feb–Mar 2027: timed papers in the board's own
+BoardWise is being built for many boards and for both Class X and Class XII. The first pack is **Maharashtra SSC Class X (English medium)**, for the exams due Feb–Mar 2027: timed papers in the board's own
 question layout, instant marking, grades, worked solutions, report cards and a progress dashboard. More boards and AI-assisted
 features are on the roadmap below. A static, dependency-free site: no build step.
 

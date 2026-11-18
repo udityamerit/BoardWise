@@ -9,7 +9,7 @@ window.AUTHOR = {
   why: [
     'Board exams are decided by practice in the real paper format: the same sections, the same "attempt any N" choices, the same time limit. Most students only get one or two such papers from school.',
     'BoardWise gives every student many full, timed papers with instant marking, board-style grading, worked solutions, report cards and a progress history, so they can see which chapters need work before the real exam.',
-    'It started with the Maharashtra SSC (Class X) syllabus, because that is where the first students are. It is being built end to end so other boards (UP, MP, Bihar and more) and AI study agents can be added later.'
+    'It started with the Maharashtra SSC Class X syllabus, because that is where the first students are. It is being built end to end for many boards and for both Class X and Class XII (UP, MP, Bihar and more), with AI study agents to follow.'
   ],
   principles: [
     'Honest labelling: mock tests are original practice papers and are never passed off as past board papers.',
