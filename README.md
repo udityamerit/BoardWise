@@ -20,7 +20,7 @@ AI features are planned (see the roadmap) and are **not** part of this build.
 
 ## Roadmap
 
-* **More subjects** for the Maharashtra SSC pack: 9 more mocks each for English, Geography, Hindi and Marathi (Maths, Science and History & Political Science already have 10).
+* **More subjects** for the Maharashtra SSC pack: 9 more mocks each for Geography, Hindi and Marathi (Maths, Science, History & Political Science and English already have 10).
 * **Boards section** (done, `js/data/boards.js`, `#/boards`): UP Board, MP Board and Bihar Board have their own pages marked *Coming soon*, with planned subjects and the pattern *as reported by third-party sites* (not verified). No papers exist for them yet. Next step for each: verify the pattern against the board's own model paper, then build mocks.
 * **More boards** (CBSE, ICSE, other state boards): papers are data (`window.PAPERS`), and the board's layout lives in `js/data/config.js`, so a board is a new data pack plus its layout.
 * **Deep agents**: AI tutors and answer evaluators, which need server-side secrets, so they will run as serverless functions beside the static site (see Hosting).
@@ -56,7 +56,8 @@ The site is plain static files, so any static host works. Recommended: **Vercel*
 | Science & Technology 1 + 2 (40 + 40) | `science-mock-1` … `science-mock-10` | 10 mocks: original (mock 1 hand-written, mocks 2–10 assembled from a chapter question bank, see below); layout **approximate** |
 | History & Political Science (40) | `history-2025-partial`, `history-mock-1` … `history-mock-10` | 2025: **partial, adapted** (marks assumed); 10 mocks: original (mock 1 hand-written, mocks 2–10 assembled from a chapter question bank, see below); mark split **approximate** |
 | Geography (28) | `geography-mock-1` | original, layout **approximate** |
-| English, Hindi, Marathi (80 each) | `english-mock-1`, `hindi-mock-1`, `marathi-mock-1` | original, layout **approximate** |
+| English (80) | `english-mock-1` … `english-mock-10` | 10 mocks: original (mock 1 hand-written, mocks 2–10 assembled from banks of original passages, poems, tables, grammar items and writing tasks, see below); layout **approximate** |
+| Hindi, Marathi (80 each) | `hindi-mock-1`, `marathi-mock-1` | original, layout **approximate** |
 
 ### What is real, adapted, original
 
@@ -72,6 +73,10 @@ The site is plain static files, so any static host works. Recommended: **Vercel*
 ### How History & Political Science mocks 2–10 are made
 
 `js/data/hist-1.js`, `hist-2.js` and `hist-3.js` hold an original question bank for each of the 9 History chapters (3 MCQ, 3 one-word, 6 two-mark, 4 three-mark, 2 four-mark and 1 passage each); `pol.js` holds the 5 Political Science chapters (4 MCQ, 6 true/false with reasons and 8 three-mark each). `hist-build.js` interleaves the chapters and gives each mock the next block, so **no question repeats across mocks 2–10 or from mock 1**, and each mock totals 40 marks in the Q1–Q9 layout of mock 1. One-word answers are auto-marked against accepted spellings; descriptive answers show a model answer and are **self-marked by the student**. These are practice questions, not board papers.
+
+### How English mocks 2–10 are made
+
+`js/data/eng-1.js` holds 9 original prose passages and 9 original poems (each with its questions); `eng-2.js` holds 9 data tables and 9 original unseen passages; `eng-3.js` holds the grammar pools (36 MCQs, 32 fill-ins, 18 reported-speech and 18 active/passive items); `eng-4.js` holds 9 formal-letter, 9 notice and 9 essay tasks with content points and samples. `eng-build.js` gives paper *k* the *k*-th passage, poem, table and writing tasks, so **no question repeats across mocks 2–10 or from mock 1**, and each mock totals 80 marks in the layout of mock 1. Table questions (highest value, total, difference, percentage) are computed from the table's numbers, so the answers always match; the builder throws if a percentage is not whole. One-word answers are auto-marked against accepted spellings (including units such as "200 litres"); written answers and the three writing tasks show a model answer and marking scheme for you to **self-mark**. These are practice papers, not board papers.
 
 ### How Maths mocks 2–10 are made
 
