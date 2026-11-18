@@ -178,6 +178,8 @@ function route(keepScroll) {
   document.querySelectorAll('[data-nav]').forEach(el => el.classList.toggle('on',
     (el.dataset.nav === 'home' && (!a || a === 'subject' || a === 'paper')) || (el.dataset.nav === 'boards' && (a === 'boards' || a === 'board')) || (el.dataset.nav === 'about' && a === 'about') || el.dataset.nav === a ||
     (el.dataset.nav === 'progress' && a === 'report') || (el.dataset.nav === 'history' && a === 'result')));
+  const onTab = document.querySelector('.topbar nav a.on');
+  if (onTab && onTab.parentNode.scrollWidth > onTab.parentNode.clientWidth) onTab.parentNode.scrollLeft = onTab.offsetLeft - (onTab.parentNode.clientWidth - onTab.offsetWidth) / 2;
   if (!keepScroll) window.scrollTo(0, 0);
   if (a === 'about') return viewAbout();
   if (!authed) return viewAuth(a === 'register' || a === 'forgot' ? a : 'login');
@@ -937,7 +939,7 @@ function renderUserbox() {
   const u = AUTH.user();
   if (!u) { el.innerHTML = ''; return; }
   const si = syncInfo(), nm = student().name || u.email;
-  el.innerHTML = `<a href="#/profile" class="ubname" title="My profile">${esc(nm)}</a><span class="sdot ${si[0]}" title="${esc(si[1])}" aria-label="${esc(si[1])}"></span><button class="btn sm" id="signout">Sign out</button>`;
+  el.innerHTML = `<a href="#/profile" class="ubprof" title="My profile"><span class="ubav">${esc((nm.trim()[0] || '?').toUpperCase())}<i class="sdot ${si[0]}" title="${esc(si[1])}" aria-label="${esc(si[1])}"></i></span><span class="ubname">${esc(nm)}</span></a><button class="btn sm" id="signout">Sign out</button>`;
   document.getElementById('signout').onclick = doSignOut;
   const sl = document.getElementById('syncline'); if (sl) sl.innerHTML = `<span class="sdot ${si[0]}"></span> ${esc(si[1])}`;
 }
