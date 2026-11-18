@@ -20,7 +20,7 @@ AI features are planned (see the roadmap) and are **not** part of this build.
 
 ## Roadmap
 
-* **More subjects** for the Maharashtra SSC pack: 9 more mocks for Marathi (Maths, Science, History & Political Science, English, Geography and Hindi already have 10).
+* **Maharashtra SSC pack:** all seven subjects now have 10 mocks each; next come other boards and Class XII.
 * **Boards section** (done, `js/data/boards.js`, `#/boards`): UP Board, MP Board and Bihar Board have their own pages marked *Coming soon*, with planned subjects and the pattern *as reported by third-party sites* (not verified). No papers exist for them yet. Next step for each: verify the pattern against the board's own model paper, then build mocks.
 * **More boards** (CBSE, ICSE, other state boards): papers are data (`window.PAPERS`), and the board's layout lives in `js/data/config.js`, so a board is a new data pack plus its layout.
 * **Deep agents**: AI tutors and answer evaluators, which need server-side secrets, so they will run as serverless functions beside the static site (see Hosting).
@@ -58,7 +58,7 @@ The site is plain static files, so any static host works. Recommended: **Vercel*
 | Geography (28) | `geography-mock-1` … `geography-mock-10` | 10 mocks: original (mock 1 hand-written, mocks 2–10 assembled from a chapter question bank, see below); layout **approximate** |
 | English (80) | `english-mock-1` … `english-mock-10` | 10 mocks: original (mock 1 hand-written, mocks 2–10 assembled from banks of original passages, poems, tables, grammar items and writing tasks, see below); layout **approximate** |
 | Hindi (80) | `hindi-mock-1` … `hindi-mock-10` | 10 mocks: original (mock 1 hand-written, mocks 2–10 assembled from banks of original passages, poems, grammar items and writing tasks, see below); layout **approximate** |
-| Marathi (80) | `marathi-mock-1` | original, layout **approximate** |
+| Marathi (80) | `marathi-mock-1` … `marathi-mock-10` | 10 mocks: original (mock 1 hand-written, mocks 2–10 assembled from banks of original passages, poems, grammar items and writing tasks, see below); layout **approximate** |
 
 ### What is real, adapted, original
 
@@ -86,6 +86,10 @@ The site is plain static files, so any static host works. Recommended: **Vercel*
 ### How Hindi mocks 2–10 are made
 
 `js/data/hin-1.js` holds 9 original unseen prose passages (each with 6 MCQs, three 2-mark questions, a 3-mark summary and a title); `hin-2.js` holds 9 original poems (4 MCQs, four 2-mark questions and a 4-mark central-idea question each); `hin-3.js` holds the grammar pools (eight kinds of 1-mark MCQ: synonyms, antonyms, idioms, tense, prefixes, abstract nouns, number, gender; four kinds of 2-mark MCQ: sandhi, samas, alankar, karak; four kinds of 2-mark written task: sentence correction, voice change, idiom use, punctuation); `hin-4.js` holds 9 letter, 9 essay and 9 dialogue tasks with marking guides. `hindi-build.js` gives paper *k* the *k*-th item of every list, so **no question repeats across mocks 2–10 or from mock 1**, and each mock totals 80 marks in the layout of mock 1 (unseen passage 16, poetry 16, grammar 24, writing 24). MCQs are auto-marked; written answers and the writing tasks show a model answer or marking guide for you to **self-mark**. These are practice papers, not board papers.
+
+### How Marathi mocks 2–10 are made
+
+`js/data/mar-1.js` holds 9 original unseen prose passages (each with 6 MCQs, three 2-mark questions, a 3-mark summary and a title); `mar-2.js` holds 9 original poems (4 MCQs, four 2-mark questions and a 4-mark central-idea question each); `mar-3.js` holds the grammar pools (eight kinds of 1-mark MCQ: synonyms, antonyms, idioms, tense, plural, gender, noun type, abstract nouns; four kinds of 2-mark MCQ: sandhi, samas, alankar, sentence type; four kinds of 2-mark written task: correct the sentence, change of tense, idiom use, punctuation); `mar-4.js` holds 9 letter, 9 essay and 9 advertisement tasks with marking guides. `marathi-build.js` gives paper *k* the *k*-th item of every list, so **no question repeats across mocks 2–10 or from mock 1**, and each mock totals 80 marks in the layout of mock 1 (unseen passage 16, poetry 16, grammar 24, writing 24). MCQs are auto-marked; written answers and the writing tasks show a model answer or marking guide for you to **self-mark**. These are practice papers, not board papers.
 
 ### How Maths mocks 2–10 are made
 
