@@ -671,7 +671,7 @@ function viewAuth(mode) {
   app.innerHTML = `<div class="authwrap"><div class="card auth">
     <div class="authhead"><img class="logo-img big" src="assets/logo.svg" alt="BoardWise" width="56" height="56"><h1>${title}</h1><p class="muted">${sub}</p></div>
     <form id="af" novalidate>
-      ${reg ? '<label>Your name<input id="f-name" autocomplete="name" maxlength="60" placeholder="e.g. Anmol Sharma"></label>' : ''}
+      ${reg ? '<label>Your name<input id="f-name" autocomplete="name" maxlength="60" placeholder="Your full name"></label>' : ''}
       <label>Email<input id="f-email" type="email" autocomplete="username" inputmode="email" autocapitalize="off" spellcheck="false" placeholder="you@example.com"></label>
       ${fg ? '' : `<label>Password<input id="f-pw" type="password" autocomplete="${reg ? 'new-password' : 'current-password'}" placeholder="${reg ? 'At least 6 characters' : 'Your password'}"></label>`}
       ${reg ? '<label>Confirm password<input id="f-pw2" type="password" autocomplete="new-password" placeholder="Type it again"></label>' : ''}

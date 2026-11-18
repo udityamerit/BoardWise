@@ -4,3 +4,12 @@
 Thumbs.db
 node_modules/
 *.log
+
+# never commit secrets
+.env
+.env.*
+*.pem
+*.key
+serviceAccount*.json
+*-firebase-adminsdk-*.json
+.firebaserc.local
