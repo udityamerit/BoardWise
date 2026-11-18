@@ -20,7 +20,7 @@ AI features are planned (see the roadmap) and are **not** part of this build.
 
 ## Roadmap
 
-* **More subjects** for the Maharashtra SSC pack: 9 more mocks each for Geography, Hindi and Marathi (Maths, Science, History & Political Science and English already have 10).
+* **More subjects** for the Maharashtra SSC pack: 9 more mocks each for Hindi and Marathi (Maths, Science, History & Political Science, English and Geography already have 10).
 * **Boards section** (done, `js/data/boards.js`, `#/boards`): UP Board, MP Board and Bihar Board have their own pages marked *Coming soon*, with planned subjects and the pattern *as reported by third-party sites* (not verified). No papers exist for them yet. Next step for each: verify the pattern against the board's own model paper, then build mocks.
 * **More boards** (CBSE, ICSE, other state boards): papers are data (`window.PAPERS`), and the board's layout lives in `js/data/config.js`, so a board is a new data pack plus its layout.
 * **Deep agents**: AI tutors and answer evaluators, which need server-side secrets, so they will run as serverless functions beside the static site (see Hosting).
@@ -55,7 +55,7 @@ The site is plain static files, so any static host works. Recommended: **Vercel*
 | Mathematics (Algebra 40 + Geometry 40) | `maths-2025-algebra`, `maths-2025-geometry`, `maths-mock-1` … `maths-mock-10` | 2025 papers: **adapted** from a third-party transcription; 10 mocks: original (mock 1 hand-written, mocks 2–10 generated, see below) |
 | Science & Technology 1 + 2 (40 + 40) | `science-mock-1` … `science-mock-10` | 10 mocks: original (mock 1 hand-written, mocks 2–10 assembled from a chapter question bank, see below); layout **approximate** |
 | History & Political Science (40) | `history-2025-partial`, `history-mock-1` … `history-mock-10` | 2025: **partial, adapted** (marks assumed); 10 mocks: original (mock 1 hand-written, mocks 2–10 assembled from a chapter question bank, see below); mark split **approximate** |
-| Geography (28) | `geography-mock-1` | original, layout **approximate** |
+| Geography (28) | `geography-mock-1` … `geography-mock-10` | 10 mocks: original (mock 1 hand-written, mocks 2–10 assembled from a chapter question bank, see below); layout **approximate** |
 | English (80) | `english-mock-1` … `english-mock-10` | 10 mocks: original (mock 1 hand-written, mocks 2–10 assembled from banks of original passages, poems, tables, grammar items and writing tasks, see below); layout **approximate** |
 | Hindi, Marathi (80 each) | `hindi-mock-1`, `marathi-mock-1` | original, layout **approximate** |
 
@@ -77,6 +77,10 @@ The site is plain static files, so any static host works. Recommended: **Vercel*
 ### How English mocks 2–10 are made
 
 `js/data/eng-1.js` holds 9 original prose passages and 9 original poems (each with its questions); `eng-2.js` holds 9 data tables and 9 original unseen passages; `eng-3.js` holds the grammar pools (36 MCQs, 32 fill-ins, 18 reported-speech and 18 active/passive items); `eng-4.js` holds 9 formal-letter, 9 notice and 9 essay tasks with content points and samples. `eng-build.js` gives paper *k* the *k*-th passage, poem, table and writing tasks, so **no question repeats across mocks 2–10 or from mock 1**, and each mock totals 80 marks in the layout of mock 1. Table questions (highest value, total, difference, percentage) are computed from the table's numbers, so the answers always match; the builder throws if a percentage is not whole. One-word answers are auto-marked against accepted spellings (including units such as "200 litres"); written answers and the three writing tasks show a model answer and marking scheme for you to **self-mark**. These are practice papers, not board papers.
+
+### How Geography mocks 2–10 are made
+
+`js/data/geo-1.js`, `geo-2.js` and `geo-3.js` hold an original question bank for each of the 9 chapters (Field Visit, Location and Extent, Physiography and Drainage, Climate, Natural Vegetation and Wildlife, Population, Human Settlements, Economy and Occupations, Tourism / Transport / Communication): 6–8 MCQs, five 2-mark, three 3-mark and three 4-mark questions each. `geo-build.js` interleaves the chapters and gives each mock the next block, so **no question repeats across mocks 2–10 or from mock 1**, and each mock totals 28 marks in the layout of mock 1 (6×1, any 4 of 5 at 2, any 2 of 3 at 3, any 2 of 3 at 4). MCQs are auto-marked; written answers show a model answer with marking points and are **self-marked by the student**. These are practice questions, not board papers.
 
 ### How Maths mocks 2–10 are made
 
