@@ -4,7 +4,12 @@ window.PAPERS = [];
 /* AI examiner service (the Cloudflare Worker in /worker). Paste its https URL here after deploying, e.g.
    endpoint: "https://boardwise-ai.<your-subdomain>.workers.dev". Leave '' to use only the built-in rule-based checker.
    Never put an API key in this file — the key lives in the Worker as a secret. */
-window.AI_CFG = { endpoint: 'https://boardwise-ai.uditya-boardwise.workers.dev' };
+window.AI_CFG = {
+  endpoint: 'https://boardwise-ai.uditya-boardwise.workers.dev',
+  /* Standby services, tried automatically if the one above is down, slow or out of date (see worker/README.md -> "Standby host").
+     Add the Deno Deploy URL here after deploying it, e.g. 'https://boardwise-ai.<your-name>.deno.net' */
+  backups: []
+};
 
 /* Question builders (keeps data files short).
    mcq : auto-marked, answer = index of correct option

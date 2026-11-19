@@ -11,6 +11,29 @@ const CFG = Object.assign({}, window.AI_CFG);
 /* developer override for local testing only (never honoured on the live site) */
 try { const o = localStorage.getItem('ssc.ai.endpoint'); if (o && /^(localhost|127\.0\.0\.1)$/.test(location.hostname)) CFG.endpoint = o; } catch (e) {}
 const BATCH = 5, TIMEOUT = 100000;
+/* Primary service first, then any backups (window.AI_CFG.backups). If one is down, slow, or too old, the next one is tried,
+   so a student never notices. A service that just failed is tried last for the next minute. */
+const okUrl = u => typeof u === 'string' && (/^https:\/\//.test(u) || /^http:\/\/(localhost|127\.0\.0\.1)/.test(u));
+const ENDPOINTS = [].concat(CFG.endpoint || [], CFG.backups || []).filter(okUrl).map(u => u.replace(/\/+$/, '')).filter((u, i, a) => a.indexOf(u) === i);
+const failedAt = {};
+async function callService(path, init, timeout) {
+  const now = Date.now(), fresh = u => !(failedAt[u] > now);
+  const order = ENDPOINTS.filter(fresh).concat(ENDPOINTS.filter(u => !fresh(u)));
+  let last = { status: 0, body: null };
+  for (const u of order) {
+    const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), timeout);
+    try {
+      const r = await fetch(u + path, Object.assign({}, init, { signal: ctl.signal }));
+      const body = r.ok ? await r.json().catch(() => null) : null;
+      last = { status: r.status, body };
+      if (r.ok && body) return last;
+      if (r.status >= 500) failedAt[u] = Date.now() + 60000;   // down / not configured: try the next service
+      else if (r.status !== 404) return last;                  // 401, 429...: another service would say the same
+    } catch (e) { failedAt[u] = Date.now() + 60000; last = { status: 0, body: null }; }   // offline, timed out, blocked
+    finally { clearTimeout(timer); }
+  }
+  return last;
+}
 
 const decode = s => s.replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&#(\d+);/g, (_, n) => String.fromCharCode(+n));
 /* HTML (question / model answer) -> plain text; bold final answers become **...** so the examiner can see them */
@@ -21,17 +44,13 @@ function text(html) {
     .replace(/<\/(p|div|li|tr|h\d)>|<br\s*\/?>/gi, '\n').replace(/<\/t[dh]>/gi, ' | ')
     .replace(/<[^>]+>/g, '')).replace(/[ \t]+/g, ' ').replace(/\n\s*\n+/g, '\n').trim();
 }
-const enabled = () => !!(CFG.endpoint && /^https:\/\//.test(CFG.endpoint) || (CFG.endpoint && /^http:\/\/(localhost|127\.0\.0\.1)/.test(CFG.endpoint)));
+const enabled = () => ENDPOINTS.length > 0;
 
 async function post(items) {
   const headers = { 'Content-Type': 'application/json' };
   try { const t = window.AUTH && await window.AUTH.idToken(); if (t) headers.Authorization = 'Bearer ' + t; } catch (e) {}
-  const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), TIMEOUT);
-  try {
-    const r = await fetch(CFG.endpoint.replace(/\/+$/, '') + '/grade', { method: 'POST', headers, signal: ctl.signal, body: JSON.stringify({ items }) });
-    if (!r.ok) return null;
-    return await r.json();
-  } catch (e) { return null; } finally { clearTimeout(timer); }
+  const r = await callService('/grade', { method: 'POST', headers, body: JSON.stringify({ items }) }, TIMEOUT);
+  return r.body || null;
 }
 
 async function grade(list) {
@@ -57,16 +76,12 @@ async function tutor(c) {
   const opts = q.options ? q.options.map((o, i) => String.fromCharCode(65 + i) + ') ' + text(o)).join('   ') : '';
   const body = { message: String(c.message).slice(0, 700), history: (c.history || []).slice(-8), chapter: q.chapter, marks: q.marks, question: text(q.q), options: opts,
                  model: text(q.solution), answer: String(c.answer == null ? '' : c.answer).slice(0, 2500), awarded: c.awarded };
-  const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 60000);
-  try {
-    const r = await fetch(CFG.endpoint.replace(/\/+$/, '') + '/tutor', { method: 'POST', headers, signal: ctl.signal, body: JSON.stringify(body) });
-    if (r.status === 404) return { error: 'old' };            // the deployed Worker predates the tutor
-    if (r.status === 429) return { error: 'limit' };
-    if (r.status === 401) return { error: 'signin' };
-    if (!r.ok) return { error: 'busy' };
-    const j = await r.json();
-    return j && j.reply ? { reply: String(j.reply) } : { error: 'busy' };
-  } catch (e) { return { error: 'net' }; } finally { clearTimeout(timer); }
+  const r = await callService('/tutor', { method: 'POST', headers, body: JSON.stringify(body) }, 60000);
+  if (r.body && r.body.reply) return { reply: String(r.body.reply) };
+  if (r.status === 404) return { error: 'old' };            // every deployed service predates the tutor
+  if (r.status === 429) return { error: 'limit' };
+  if (r.status === 401) return { error: 'signin' };
+  return { error: r.status === 0 ? 'net' : 'busy' };
 }
 
 /* Built-in tutor: used whenever the AI service is old, down, busy or offline, so the tutor never dead-ends.
@@ -90,5 +105,5 @@ function offlineTutor(c) {
   return head + '**Step by step:**\n' + stepList + (steps.length > 1 ? '\n\nTip: learn the key terms in bold in the model answer; examiners give marks for each point.' : '');
 }
 
-window.AIG = { enabled, grade, tutor, offlineTutor, _text: text };
+window.AIG = { enabled, grade, tutor, offlineTutor, _text: text, _endpoints: () => ENDPOINTS.slice() };
 })();

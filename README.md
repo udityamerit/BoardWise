@@ -137,6 +137,8 @@ window.PAPERS.push({
 ```powershell
 node tools/validate.js            # question bank: ids, types, marks, MCQ answer index, HTML balance, totals (add --verbose for warnings)
 node tools/mock-ai.mjs            # 40 checks of worker/worker.js against a fake AI provider (grader, verifier, fallback, tutor, limits, /stats)
+node tools/test-failover.mjs      # 12 checks that the site switches to a standby AI service when the main one is down
+node tools/check-worker.mjs       # read-only health check of the LIVE AI service(s); run every 30 min by .github/workflows/ai-uptime.yml
 node tools/mock-ai.mjs --serve    # same fake provider as a local Worker on :8787 for browser testing
 ```
 

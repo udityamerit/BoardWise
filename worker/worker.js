@@ -311,7 +311,7 @@ export default {
     try { who = auth ? await verifyFirebase(auth, env) : null; } catch (e) { who = null; }
     if (!who) {
       if (String(env.ALLOW_ANON) !== '1') { stat.reject('sign_in'); return json({ error: 'sign_in_required' }, 401, cors.headers); }
-      anon = true; who = 'ip:' + (req.headers.get('CF-Connecting-IP') || 'unknown');
+      anon = true; who = 'ip:' + (req.headers.get('CF-Connecting-IP') || String(req.headers.get('X-Forwarded-For') || '').split(',')[0].trim() || 'unknown');
     }
     const cap = isTutor ? (anon ? LIMITS.tutorPerHourAnon : LIMITS.tutorPerHour) : (anon ? LIMITS.perHourAnon : LIMITS.perHour);
     if (!rateLimit((isTutor ? 'tutor:' : '') + who, cap)) { stat.reject('rate_limit'); return json({ error: 'slow_down' }, 429, cors.headers); }

@@ -1,0 +1,19 @@
+# Checks the live AI service(s) every 30 minutes, around the clock. If anything is down or out of date, this run fails
+# and GitHub emails the repository owner (Settings > Notifications > Actions). It sends no student data and uses no keys.
+name: AI uptime check
+on:
+  schedule:
+    - cron: '7,37 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node tools/check-worker.mjs
