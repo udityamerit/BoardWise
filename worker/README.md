@@ -49,12 +49,13 @@ Commit and push; written answers are now marked by the AI examiner. Check it is 
 
 Cloudflare rarely goes down, but a free standby makes an outage invisible: the site tries the main Worker first and, if it is unreachable, slow, erroring or out of date, silently uses the standby (`AI_CFG.backups` in `js/data/config.js`). The same `worker.js` runs on both, so marking and the tutor behave the same.
 
-1. Sign in at <https://dash.deno.com> with GitHub (free, no card) and create a project from this repository, entry point `worker/deno/main.js`.
-2. In the project's **Settings -> Environment variables** add `MINIMAX_API_KEY` and `OPENROUTER_API_KEY` (and `ADMIN_KEY` if you use it). Nothing else is needed; the other settings default to the values in `wrangler.toml`.
-3. Put the project's URL in `js/data/config.js`: `backups: ['https://<project>.deno.dev']`, commit and push.
-4. Check both: `node tools/check-worker.mjs`.
+1. Sign in at <https://vercel.com> with GitHub (free Hobby plan, no card) and import this repository as a new project.
+2. Set **Root Directory** to `worker/vercel` (leave "Include source files outside of the Root Directory" on), framework "Other".
+3. Under **Environment Variables** add `MINIMAX_API_KEY` and `OPENROUTER_API_KEY` (and `ADMIN_KEY` if you use it). Nothing else is needed; the other settings default to the values in `wrangler.toml`. Deploy.
+4. Put the project's URL in `js/data/config.js`: `backups: ['https://<project>.vercel.app']`, commit and push.
+5. Check both: `node tools/check-worker.mjs`.
 
-(Any other host that runs a standard `fetch(request, env)` handler works the same way: Supabase Edge Functions, Vercel, Netlify.)
+(Deno Deploy would have been the first choice but is closed to new signups. Netlify Functions or Supabase Edge Functions work the same way: any host that can run a standard `fetch(request, env)` handler.)
 
 **Monitoring:** `.github/workflows/ai-uptime.yml` runs `tools/check-worker.mjs` every 30 minutes. If a service is down, missing a route or has no provider key, that run fails and GitHub emails you.
 

@@ -7,7 +7,7 @@ window.PAPERS = [];
 window.AI_CFG = {
   endpoint: 'https://boardwise-ai.uditya-boardwise.workers.dev',
   /* Standby services, tried automatically if the one above is down, slow or out of date (see worker/README.md -> "Standby host").
-     Add the Deno Deploy URL here after deploying it, e.g. 'https://boardwise-ai.<your-name>.deno.net' */
+     Add the Vercel standby URL here after deploying it, e.g. 'https://boardwise-ai.vercel.app' */
   backups: []
 };
 
