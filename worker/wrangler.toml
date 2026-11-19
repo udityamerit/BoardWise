@@ -21,6 +21,10 @@ MINIMAX_EFFORT = "medium"
 # Same for OpenRouter models that can think: low | medium | high
 OPENROUTER_EFFORT = "medium"
 
+# Thinking depth for AI-tutor replies (POST /tutor): low = fast. Optional.
+# TUTOR_EFFORT = "low"
+
 # API keys are NOT stored here. Set them once from this folder with:
 #   npx wrangler secret put MINIMAX_API_KEY
 #   npx wrangler secret put OPENROUTER_API_KEY      (automatic backup when MiniMax is out of tokens)
+#   npx wrangler secret put ADMIN_KEY               (optional: lets you read usage counters at GET /stats)

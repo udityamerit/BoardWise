@@ -11,7 +11,16 @@ const LS = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
 };
 const subj = k => SUBJECTS.find(s => s.key === k);
-const paperById = id => PAPERS.find(p => p.id === id);
+/* "Practice sets" (weak-chapter drills) are built on the fly from questions of the real mocks. Their paper is virtual: it is never in
+   PAPERS (so it never shows up in paper lists or counts) and has no questions of its own; every question is a foreign one
+   (see makeVariant), filed under the single section below. */
+const VP = new Map();
+function practicePaper(id) {
+  const m = /^practice-([\w-]+)$/.exec(id || ''), S = m && SUBJECTS.find(x => x.key === m[1]); if (!S) return null;
+  if (!VP.has(id)) VP.set(id, { id, subject: S.key, kind: 'practice', board: 'msbshse', level: 'Class X', title: 'Practice set — ' + S.name, sections: [{ id: 'pr', title: 'Practice set', part: null, questions: [] }] });
+  return VP.get(id);
+}
+const paperById = id => PAPERS.find(p => p.id === id) || practicePaper(id);
 const go = h => { location.hash = h; };
 const fmt = n => (Math.round(n * 100) / 100).toString();
 const pad = n => String(n).padStart(2, '0');
@@ -45,6 +54,7 @@ const marksOf = qs => groupBySec(qs).reduce((a, g) =>
   a + g.qs.map(q => q.marks).sort((x, y) => y - x).slice(0, need(g)).reduce((s, x) => s + x, 0), 0);
 const paperMarks = p => marksOf(flat(p));
 function modeLabel(P, mode) {
+  if (P && P.kind === 'practice') return 'Weak-chapter practice';
   if (mode === 'all') return 'Full paper';
   if (mode === 'part1') return 'Part 1 only';
   if (mode === 'part2') return 'Part 2 only';
@@ -233,7 +243,33 @@ function makeVariant(P, mode, kind) {
   return { qids, opt, slots, variant: { kind: kind === 'fresh' && swapped ? 'fresh' : 'shuffle', swapped } };
 }
 const freshCount = (P, mode) => pick(P, mode).filter(q => !q.sec.passage && freshPool(P, q).length).length;
-const variantLabel = A => !A.variant ? '' : A.variant.kind === 'fresh' ? `Fresh mix · ${A.variant.swapped} new question${A.variant.swapped > 1 ? 's' : ''}` : 'Shuffled';
+const variantLabel = A => !A.variant ? '' : A.variant.kind === 'practice' ? 'Practice: ' + (A.variant.chapters || []).join(', ') : A.variant.kind === 'fresh' ? `Fresh mix · ${A.variant.swapped} new question${A.variant.swapped > 1 ? 's' : ''}` : 'Shuffled';
+/* Build a short mixed drill (about 12 questions, at most ~30 marks) from the given chapters of one subject, unseen questions first. */
+function startPractice(subjectKey, chapters) {
+  const S = subj(subjectKey), P = S && practicePaper('practice-' + subjectKey); if (!P) return;
+  const want = new Set(chapters.map(c => String(c).trim().toLowerCase()));
+  const seen = seenIds(subjectKey), used = new Set(), pool = [];
+  PAPERS.forEach(O => {
+    if (O.subject !== subjectKey) return;
+    O.sections.forEach(sec => { if (sec.passage) return; flat(O).forEach(f => {
+      if (f.sec !== sec || !want.has(String(f.chapter || 'General').trim().toLowerCase()) || used.has(tkey(f))) return;
+      used.add(tkey(f)); pool.push({ id: O.id + FSEP + f.id, q: f, seen: seen.has(O.id + FSEP + f.id) });
+    }); });
+  });
+  if (pool.length < 3) { alert('There are not enough questions for ' + chapters.join(', ') + ' yet. Try a full mock test on this subject instead.'); return; }
+  if (active() && !confirm('A test is already in progress. Starting a new one will discard it. Continue?')) return;
+  shuffleArr(pool); pool.sort((a, b) => a.seen - b.seen);
+  const chosen = []; let marks = 0;
+  pool.forEach(c => { if (chosen.length < 12 && marks + c.q.marks <= 30) { chosen.push(c); marks += c.q.marks; } });
+  const rank = c => c.q.type === 'mcq' ? 0 : c.q.type === 'num' ? 1 : 2;
+  chosen.sort((a, b) => rank(a) - rank(b) || a.q.marks - b.q.marks);
+  const slots = {}, opt = {};
+  chosen.forEach(c => { slots[c.id] = 'pr'; const o = optPerm(c.q); if (o) opt[c.id] = o; });
+  const mins = Math.max(5, Math.round(marks * BOARD.minutesPerMark / 5) * 5);
+  saveActive({ id: 'a' + Date.now(), paperId: P.id, mode: 'all', startedAt: Date.now(), endsAt: Date.now() + mins * 60000, answers: {}, flags: {}, seen: {}, cur: 0, self: {},
+    qids: chosen.map(c => c.id), slots, opt, variant: { kind: 'practice', swapped: chosen.length, chapters: chapters.slice(0, 6) } });
+  go('#/test');
+}
 function startAttempt(P, mode, kind) {
   if (active() && !confirm('A test is already in progress. Starting a new one will discard it. Continue?')) return;
   const qs = pick(P, mode);
@@ -526,6 +562,7 @@ function structureTable(P) {
 
 function viewInstr(id) {
   const P = paperById(id); if (!P) return viewHome();
+  if (P.kind === 'practice') return go('#/progress');
   const S = subj(P.subject), all = flat(P);
   const modes = [['all', 'Full paper', all]];
   if (hasParts(P)) { modes.push(['part1', 'Part 1 only', pick(P, 'part1')], ['part2', 'Part 2 only', pick(P, 'part2')]); }
@@ -788,6 +825,7 @@ function viewResult(id) {
   function summary() {
     const r = evaluate(A), g = gradeOf(r.pct), passed = r.pct >= BOARD.passPercent;
     const sk = streaks(attempts());
+    const weakChaps = P.kind === 'practice' ? [] : Object.entries(r.chaps).filter(e => e[1].tot >= 2 && e[1].got / e[1].tot < .6).sort((a, b) => a[1].got / a[1].tot - b[1].got / b[1].tot).slice(0, 3).map(e => e[0]);
     document.getElementById('sum').innerHTML = `
     <div class="card"><div class="score">
       <div class="ring ${g.cls}" style="--p:${r.pct}"><div><div><b>${fmt(r.got)}</b><br><span class="muted">/ ${r.total}</span></div></div></div>
@@ -805,14 +843,58 @@ function viewResult(id) {
       <div class="card"><h3>Section-wise</h3><table>${Object.entries(r.secs).map(([k, v]) => `<tr><td>${esc(k)}</td><td class="nowrap">${fmt(v.got)} / ${v.tot}</td><td>${bar(v.got, v.tot)}</td></tr>`).join('')}</table></div>
       <div class="card"><h3>Chapter-wise (weakest first)</h3><table>${Object.entries(r.chaps).sort((a, b) => a[1].got / a[1].tot - b[1].got / b[1].tot).map(([k, v]) => `<tr><td>${esc(k)}</td><td class="nowrap">${fmt(v.got)} / ${v.tot}</td><td>${bar(v.got, v.tot)}</td></tr>`).join('')}</table></div>
     </div>
-    <div style="margin:16px 0;display:flex;gap:8px;flex-wrap:wrap"><a class="btn pri" href="#/report/${A.id}">🖨 Report card (print / PDF)</a><button class="btn" data-retake="shuffle" title="Same questions, new order and re-arranged options">↻ Retake (shuffled)</button>${freshCount(P, A.mode) ? '<button class="btn" data-retake="fresh" title="Different questions of the same type, from other mocks">✨ Retake (fresh mix)</button>' : ''}<button class="btn" data-go="#/progress">My progress</button><button class="btn" data-go="#/history">All my results</button></div>
+    <div style="margin:16px 0;display:flex;gap:8px;flex-wrap:wrap"><a class="btn pri" href="#/report/${A.id}">🖨 Report card (print / PDF)</a>${P.kind === 'practice' ? `<button class="btn" data-practice="${esc((A.variant && A.variant.chapters || []).join('|'))}" title="A new set of questions from the same chapters">↻ Practice again</button>` : `<button class="btn" data-retake="shuffle" title="Same questions, new order and re-arranged options">↻ Retake (shuffled)</button>${freshCount(P, A.mode) ? '<button class="btn" data-retake="fresh" title="Different questions of the same type, from other mocks">✨ Retake (fresh mix)</button>' : ''}${weakChaps.length ? `<button class="btn" data-practice="${esc(weakChaps.join('|'))}" title="A short drill on the chapters you lost most marks in">🎯 Practice weak chapters</button>` : ''}`}<button class="btn" data-go="#/progress">My progress</button><button class="btn" data-go="#/history">All my results</button></div>
     <div class="rvhead"><h2 style="margin:0">Answer review &amp; worked solutions</h2><button class="btn sm noprint" id="printrev">🖨 Print review with solutions</button></div>
     <div class="filters">${[['all', 'All'], ['wrong', 'Incorrect'], ['skip', 'Not attempted'], ['self', 'Written answers'], ['correct', 'Correct']].map(f => `<button class="btn sm ${filter === f[0] ? 'pri' : ''}" data-f="${f[0]}">${f[1]}</button>`).join('')}</div>`;
     document.querySelectorAll('#sum [data-go]').forEach(b => b.onclick = () => go(b.dataset.go));
     document.querySelectorAll('#sum [data-retake]').forEach(b => b.onclick = () => startAttempt(P, A.mode, b.dataset.retake));
+    document.querySelectorAll('#sum [data-practice]').forEach(b => b.onclick = () => startPractice(P.subject, b.dataset.practice.split('|').filter(Boolean)));
     document.getElementById('printrev').onclick = () => window.print();
     document.querySelectorAll('[data-f]').forEach(b => b.onclick = () => { filter = b.dataset.f; summary(); review(); });
     return r;
+  }
+  /* ---- AI tutor: one small chat per question, kept while this page is open ---- */
+  const chats = new Map(), tinfo = new Map();
+  const TERR = { off: 'The AI tutor is not switched on for this site.', old: 'The AI tutor is not live yet on the server — the site owner needs to redeploy the Worker. Everything else works.', busy: 'The tutor is busy right now. Please try again in a minute.', limit: 'You have asked a lot of questions this hour — take a short break and try again.', signin: 'Please sign in to use the AI tutor.', net: 'Could not reach the tutor. Check your internet and try again.' };
+  const chatOf = id => { let c = chats.get(id); if (!c) { c = { open: false, msgs: [], busy: false, err: '', draft: '' }; chats.set(id, c); } return c; };
+  /* tiny safe markdown: escape first, then **bold**, `code`, line breaks and numbered lines */
+  const mdLite = t => esc(t).replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>').replace(/`([^`\n]+)`/g, '<code>$1</code>').replace(/\n/g, '<br>');
+  function tutorHtml(q) {
+    if (!window.AIG || !AIG.enabled()) return '';
+    const c = chatOf(q.id), info = tinfo.get(q.id) || {};
+    if (!c.open) return `<div class="tutor"><button class="btn sm tbtn" data-topen="${esc(q.id)}">💬 Ask the AI tutor about this question</button></div>`;
+    const chips = c.msgs.length ? '' : `<div class="tchips">${[['Explain this step by step', 'Explain this step by step'], info.attempted ? ['Where did I go wrong?', 'Where exactly did I go wrong, and what should I change?'] : null, ['Give me a similar question', 'Give me a similar practice question to try'], ['समझाओ (हिंदी)', 'इसे सरल हिंदी में समझाओ']].filter(Boolean).map(x => `<button class="chip tchip" data-tsend="${esc(x[1])}" data-tq="${esc(q.id)}">${esc(x[0])}</button>`).join('')}</div>`;
+    return `<div class="tutor open"><div class="thead"><b>💬 AI tutor</b><button class="btn sm" data-tclose="${esc(q.id)}" aria-label="Close tutor">✕</button></div>
+      <div class="tmsgs" aria-live="polite">${c.msgs.map(m => `<div class="tmsg ${m.role}">${m.role === 'user' ? esc(m.content) : mdLite(m.content)}</div>`).join('')}${c.busy ? '<div class="tmsg assistant"><span class="spin"></span> thinking…</div>' : ''}${c.err ? `<div class="tmsg err">${esc(c.err)}</div>` : ''}</div>
+      ${chips}
+      <form class="tform" data-tform="${esc(q.id)}"><input type="text" maxlength="700" placeholder="Ask anything about this question…" value="${esc(c.draft)}" ${c.busy ? 'disabled' : ''} aria-label="Your question for the tutor"><button class="btn pri sm" ${c.busy ? 'disabled' : ''}>Ask</button></form>
+      <div class="small muted">AI can make mistakes — check with your textbook or teacher.</div></div>`;
+  }
+  function paintTutor(qid, keepFocus) {
+    const host = document.querySelector(`[data-thost="${CSS.escape(qid)}"]`), info = tinfo.get(qid); if (!host || !info) return;
+    host.innerHTML = tutorHtml(info.q); bindTutor(host);
+    const box = host.querySelector('.tmsgs'); if (box) box.scrollTop = box.scrollHeight;
+    if (keepFocus) { const i = host.querySelector('.tform input'); if (i && !i.disabled) { i.focus(); const n = i.value.length; i.setSelectionRange(n, n); } }
+  }
+  async function tutorSend(qid, text) {
+    text = String(text || '').trim(); const info = tinfo.get(qid), c = chatOf(qid);
+    if (!text || c.busy || !info) return;
+    const history = c.msgs.slice(-8).map(m => ({ role: m.role, content: m.content }));
+    c.msgs.push({ role: 'user', content: text.slice(0, 700) }); c.draft = ''; c.err = ''; c.busy = true; paintTutor(qid);
+    let r; try { r = await AIG.tutor({ q: info.q, answer: info.ans, awarded: info.got, history, message: text }); } catch (e) { r = { error: 'net' }; }
+    c.busy = false;
+    if (r && r.reply) c.msgs.push({ role: 'assistant', content: r.reply }); else { c.err = TERR[(r && r.error) || 'busy'] || TERR.busy; c.msgs.pop(); c.draft = text; }
+    paintTutor(qid, true);
+  }
+  function bindTutor(root) {
+    root.querySelectorAll('[data-topen]').forEach(b => b.onclick = () => { chatOf(b.dataset.topen).open = true; paintTutor(b.dataset.topen, true); });
+    root.querySelectorAll('[data-tclose]').forEach(b => b.onclick = () => { chatOf(b.dataset.tclose).open = false; paintTutor(b.dataset.tclose); });
+    root.querySelectorAll('[data-tsend]').forEach(b => b.onclick = () => tutorSend(b.dataset.tq, b.dataset.tsend));
+    root.querySelectorAll('[data-tform]').forEach(f => {
+      const inp = f.querySelector('input'), id = f.dataset.tform;
+      inp.oninput = () => { chatOf(id).draft = inp.value; };
+      f.onsubmit = e => { e.preventDefault(); tutorSend(id, inp.value); };
+    });
   }
   function ansDisplay(q, v) {
     if (!isAns(v)) return '<span class="muted">Not attempted</span>';
@@ -823,6 +905,7 @@ function viewResult(id) {
     const rows = r.rows.map((x, i) => Object.assign({ n: i + 1 }, x)).filter(x => filter === 'all' || (x.st === filter && (x.counted || x.st !== 'skip')));
     document.getElementById('rev').innerHTML = rows.length ? rows.map(({ q, st, got, counted, n, t, chg, src: msrc, auto }) => {
       const v = A.answers[q.id];
+      tinfo.set(q.id, { q, attempted: isAns(v), got: counted ? got : null, ans: !isAns(v) ? '' : q.type === 'mcq' ? letter(mcqIdx(v)) + '. ' + AIG._text(q.options[mcqIdx(v)]) : String(v) });
       let body = '';
       if (q.type === 'mcq') body = q.options.map((o, i) => `<div class="optr ${i === q.answer ? 'right' : ''} ${isAns(v) && mcqIdx(v) === i ? 'mine ' + (i === q.answer ? '' : 'wrong') : ''}"><b>${letter(i)}.</b> ${o} ${i === q.answer ? '✔ correct' : ''}${isAns(v) && mcqIdx(v) === i && i !== q.answer ? ' ✘ your answer' : ''}</div>`).join('');
       else if (q.type === 'num') body = `<div class="your"><b>Your answer:</b> ${ansDisplay(q, v)}</div><div><b>Correct answer:</b> ${esc(q.accept[0])}</div>`;
@@ -841,8 +924,10 @@ function viewResult(id) {
         <div>${extra} <span class="chip ${stCls}">${stLabel}</span> <b>${counted ? fmt(got) : '–'} / ${q.marks}</b></div></div>
         <div class="qtext">${q.q}</div>${figHtml(q, true)}${body}${mark}
         ${ai && !manual && (ai.fb || (ai.missing || []).length || (ai.steps || []).length) ? `<div class="aifb">${ai.fb ? `<div>${esc(ai.fb)}</div>` : ''}${(ai.steps || []).length ? `<div class="aisteps"><b>How to get full marks, step by step</b><ol>${ai.steps.map(x => `<li>${esc(x)}</li>`).join('')}</ol></div>` : ''}${(ai.missing || []).length ? `<div class="small muted">Not covered: ${ai.missing.map(esc).join('; ')}</div>` : ''}${ai.tip ? `<div class="aitip">💡 ${esc(ai.tip)}</div>` : ''}</div>` : ''}
-        <div class="sol"><b>${q.type === 'self' ? 'Model answer, step by step' : 'Solution'}:</b>${solHtml(q)}</div></div>`;
+        <div class="sol"><b>${q.type === 'self' ? 'Model answer, step by step' : 'Solution'}:</b>${solHtml(q)}</div>
+        <div class="thost noprint" data-thost="${esc(q.id)}">${tutorHtml(q)}</div></div>`;
     }).join('') : '<div class="empty">Nothing in this filter.</div>';
+    bindTutor(document.getElementById('rev'));
     document.querySelectorAll('[data-q]').forEach(sel => sel.onchange = () => {
       A.self = A.self || {};
       if (sel.value === '') delete A.self[sel.dataset.q]; else A.self[sel.dataset.q] = parseFloat(sel.value);
@@ -1020,9 +1105,9 @@ function viewProgress() {
   <div class="kpis" style="margin:16px 0"><div class="kpi"><b>${list.length}</b>tests taken</div><div class="kpi"><b>${fmt(avg)}%</b>average score</div>
     <div class="kpi"><b>${fmt(Math.max(...all))}%</b>best score</div><div class="kpi"><b>${ss.length} / ${SUBJECTS.length}</b>subjects tried</div></div>
   ${activityCards(list)}
-  <div class="grid g2">
+  <div class="grid g2 fit">
     <div class="card"><h3>Score trend (all tests, oldest → latest)</h3>${trendSvg(list.slice(-20).map(x => ({ v: x.r.pct, t: x.P.title, d: x.a.submittedAt })), 560, 190)}<p class="small muted" style="margin:4px 0 0">Red dashed line = pass mark (${BOARD.passPercent}%). Shows up to the last 20 tests.</p></div>
-    <div class="card"><h3>Focus first — weakest chapters</h3>${weak.length ? `<table>${weak.slice(0, 8).map(w => `<tr><td>${esc(w.k)}<div class="small muted">${esc(w.s.name)}</div></td><td class="nowrap">${fmt(w.p)}%</td><td>${bar(w.got, w.tot)}</td></tr>`).join('')}</table>` : '<p class="muted">Not enough data yet.</p>'}</div>
+    <div class="card"><h3>Focus first — weakest chapters</h3>${weak.length ? `<div class="tscroll"><table class="wk">${weak.slice(0, 8).map(w => `<tr><td>${esc(w.k)}<div class="small muted">${esc(w.s.name)}</div></td><td class="nowrap">${fmt(w.p)}%</td><td style="min-width:70px">${bar(w.got, w.tot)}</td><td class="right"><button class="btn sm" data-prac="${esc(w.s.key)}" data-chap="${esc(w.k)}" title="A short drill on this chapter">Practice ›</button></td></tr>`).join('')}</table></div><p class="small muted" style="margin:8px 0 0">Each button builds a drill of up to 12 questions from that chapter, new questions first.</p>` : '<p class="muted">Not enough data yet.</p>'}</div>
   </div>
   <div class="card" style="margin-top:16px"><h3>Subject-wise</h3><div class="tscroll"><table><tr><th>Subject</th><th>Tests</th><th>Best</th><th>Average</th><th>Latest</th><th>Trend</th><th>Grade (best)</th></tr>
     ${ss.map(x => `<tr><td>${x.s.icon} <a href="#/subject/${x.s.key}">${esc(x.s.name)}</a></td><td>${x.n}</td><td>${fmt(x.best)}%</td><td>${fmt(x.avg)}%</td><td>${fmt(x.latest)}%</td><td>${spark(x.pcts)}</td><td><span class="chip ${gradeOf(x.best).min >= 45 ? 'ok' : gradeOf(x.best).min >= 35 ? 'warn' : 'bad'}">${gradeOf(x.best).label}</span></td></tr>`).join('')}</table></div>
@@ -1030,6 +1115,7 @@ function viewProgress() {
   <div style="margin:16px 0;display:flex;gap:8px;flex-wrap:wrap"><a class="btn pri" href="#/report">🖨 Overall report card (print / PDF)</a><button class="btn" id="csv">⬇ Export CSV</button><a class="btn" href="#/history">All results</a></div>`
   : '<div class="card empty" style="margin-top:16px">No tests yet — your scores, trend and weak chapters will show up here after your first test.<br><br><a class="btn pri" href="#/">Pick a subject</a></div>'}`;
   const csv = document.getElementById('csv'); if (csv) csv.onclick = exportCSV;
+  document.querySelectorAll('[data-prac]').forEach(b => b.onclick = () => startPractice(b.dataset.prac, [b.dataset.chap]));
   const heat = document.getElementById('heat'); if (heat) heat.scrollLeft = heat.scrollWidth;
 }
 
@@ -1053,7 +1139,7 @@ function viewReport(id) {
   const strong = chaps.slice(-2).reverse().filter(c => c[1].got / c[1].tot >= .6), weak = chaps.slice(0, 3).filter(c => c[1].got / c[1].tot < .6);
   app.innerHTML = `<div class="noprint" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><button class="btn pri" id="print">🖨 Print / Save as PDF</button><a class="btn" href="#/result/${A.id}">‹ Back to result</a></div>
   <div class="card report">${reportHead('Practice Test Report Card', [P])}
-    <table class="rinfo"><tr><td><b>Subject</b></td><td>${esc(S.name)}</td><td><b>Paper</b></td><td colspan="3">${esc(P.title)} — ${esc(modeLabel(P, A.mode))}${A.variant ? ' · ' + esc(variantLabel(A)) : ''}${P.kind === 'pyq' ? ' (Board ' + esc(P.year) + ', third-party copy)' : ' (mock test)'}</td></tr>
+    <table class="rinfo"><tr><td><b>Subject</b></td><td>${esc(S.name)}</td><td><b>Paper</b></td><td colspan="3">${esc(P.title)} — ${esc(modeLabel(P, A.mode))}${A.variant ? ' · ' + esc(variantLabel(A)) : ''}${P.kind === 'pyq' ? ' (Board ' + esc(P.year) + ', third-party copy)' : P.kind === 'practice' ? ' (practice set)' : ' (mock test)'}</td></tr>
     <tr><td><b>Date</b></td><td>${dateStr(A.submittedAt)}</td><td><b>Time taken</b></td><td>${dur(r.secsTaken)} of ${dur((A.endsAt - A.startedAt) / 1000)}</td><td><b>Pass mark</b></td><td>${BOARD.passPercent}%</td></tr></table>
     <div class="rscore"><div class="rbig"><b>${fmt(r.got)}</b> / ${r.total}</div><div class="rbig2">${fmt(r.pct)}%</div>
       <div><span class="chip ${g.min >= 45 ? 'ok' : g.min >= 35 ? 'warn' : 'bad'}" style="font-size:1rem">${g.label}</span> <span class="chip ${passed ? 'ok' : 'bad'}" style="font-size:1rem">${passed ? 'PASS' : 'BELOW PASS MARK'}</span></div></div>

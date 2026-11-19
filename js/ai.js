@@ -2,7 +2,9 @@
    and switches between models on its own. Students never enter a key. If the service is not set up, is down, or the
    student is offline, every function here resolves to null and the site keeps using its rule-based checker (js/check.js).
      AIG.enabled()                 -> true when an endpoint is configured
-     AIG.grade(items)              -> Promise<{ [qid]: { m, fb, steps, tip, missing, models } } | null>   items: [{ q, answer }]  */
+     AIG.grade(items)              -> Promise<{ [qid]: { m, fb, steps, tip, missing, models } } | null>   items: [{ q, answer }]
+     AIG.tutor(ctx)                -> Promise<{ reply } | { error: 'off'|'busy'|'limit'|'signin'|'old'|'net' }>
+                                      ctx: { q, answer, awarded, history:[{role,content}], message }  */
 (function () {
 'use strict';
 const CFG = Object.assign({}, window.AI_CFG);
@@ -47,5 +49,25 @@ async function grade(list) {
   return Object.keys(out).length ? out : null;
 }
 
-window.AIG = { enabled, grade, _text: text };
+/* One tutor turn about one question. Never throws: on trouble it resolves to { error } so the page can show a friendly line. */
+async function tutor(c) {
+  if (!enabled()) return { error: 'off' };
+  const q = c.q, headers = { 'Content-Type': 'application/json' };
+  try { const t = window.AUTH && await window.AUTH.idToken(); if (t) headers.Authorization = 'Bearer ' + t; } catch (e) {}
+  const opts = q.options ? q.options.map((o, i) => String.fromCharCode(65 + i) + ') ' + text(o)).join('   ') : '';
+  const body = { message: String(c.message).slice(0, 700), history: (c.history || []).slice(-8), chapter: q.chapter, marks: q.marks, question: text(q.q), options: opts,
+                 model: text(q.solution), answer: String(c.answer == null ? '' : c.answer).slice(0, 2500), awarded: c.awarded };
+  const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 60000);
+  try {
+    const r = await fetch(CFG.endpoint.replace(/\/+$/, '') + '/tutor', { method: 'POST', headers, signal: ctl.signal, body: JSON.stringify(body) });
+    if (r.status === 404) return { error: 'old' };            // the deployed Worker predates the tutor
+    if (r.status === 429) return { error: 'limit' };
+    if (r.status === 401) return { error: 'signin' };
+    if (!r.ok) return { error: 'busy' };
+    const j = await r.json();
+    return j && j.reply ? { reply: String(j.reply) } : { error: 'busy' };
+  } catch (e) { return { error: 'net' }; } finally { clearTimeout(timer); }
+}
+
+window.AIG = { enabled, grade, tutor, _text: text };
 })();

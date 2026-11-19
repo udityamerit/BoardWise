@@ -16,11 +16,13 @@ python -m http.server 8765      # then open http://localhost:8765   (or just ope
 
 Each student signs in with their own **email + password**. Attempts, results, the in-progress test and the profile are stored
 per account (Firebase Auth + Firestore, with a per-user cache in `localStorage`), so ~100 students can share one site and never see each other's data.
-AI features are planned (see the roadmap) and are **not** part of this build.
+AI marking and the AI tutor run through a small Cloudflare Worker that holds the provider keys (see [`worker/README.md`](worker/README.md)); without it the site still works with its built-in rule-based checker.
 
 ## Roadmap
 
-* **Maharashtra SSC pack:** all seven subjects now have 10 mocks each; next come other boards and Class XII.
+* **Done:** Maharashtra SSC Class X, all seven subjects with 10 mocks each; AI examiner (grader + cross-provider verifier); AI tutor on every reviewed question; weak-chapter practice sets; question-bank validator and mock-AI test harness (`tools/`).
+* **Deferred (not started):** UP / MP / Bihar board packs and Class XII / CBSE / ICSE.
+* **Not possible yet:** real past papers 2019–2024, which need a source that can be fetched and trusted (see "Adding a real paper").
 * **Boards section** (done, `js/data/boards.js`, `#/boards`): UP Board, MP Board and Bihar Board have their own pages marked *Coming soon*, with planned subjects and the pattern *as reported by third-party sites* (not verified). No papers exist for them yet. Next step for each: verify the pattern against the board's own model paper, then build mocks.
 * **More boards** (CBSE, ICSE, other state boards): papers are data (`window.PAPERS`), and the board's layout lives in `js/data/config.js`, so a board is a new data pack plus its layout.
 * **Deep agents**: AI tutors and answer evaluators, which need server-side secrets, so they will run as serverless functions beside the static site (see Hosting).
@@ -43,7 +45,9 @@ The site is plain static files, so any static host works. Recommended: **Vercel*
 * **Timed tests** in the real paper layout — Q.1(A), Q.1(B), Q.2 … with "attempt any N of M" choices, scaled timer (3 min/mark).
 * **Full paper, one part, or one section** — e.g. Maths: both parts (4 h) or Algebra only (2 h).
 * **Marking**: MCQ and short answers are auto-marked (typed answers tolerate `x = 3`, `Rs. 1,150`, `(2, 1)`, `3 cm`). Written answers are auto-checked against the model answer (`js/check.js`: bold final answers are matched as numbers / equations / words, otherwise key-point coverage; marks in 0.5 steps) and the student can override any of them. Drawings, constructions, graphs and proofs cannot be checked by a computer, so those stay self-marked. Model answers are shown step by step (givens, numbered calculation lines, marks per step, highlighted result). Only the best N answers of an "any N" group count.
-* **AI examiner (optional)**: written answers can be marked by AI models (Nemotron / Qwen / Gemma via OpenRouter) through a small Cloudflare Worker that holds the API key and switches models automatically when one is rate-limited — see [`worker/README.md`](worker/README.md). Without it the built-in rule-based checker is used.
+* **AI examiner (optional)**: written answers are marked by AI models (MiniMax first, strong OpenRouter models as backup) through a Cloudflare Worker that holds the API keys, double-checked by a second model from another provider, and switches models automatically when one is rate-limited — see [`worker/README.md`](worker/README.md). Without it the built-in rule-based checker is used.
+* **AI tutor**: in the review of any question, "Ask the AI tutor" opens a short chat (step-by-step explanation, "where did I go wrong?", a similar practice question, or an explanation in Hindi). It knows the question, the model answer and the student's answer. Needs the Worker's `/tutor` route; until that is deployed it shows a friendly "not live yet" message.
+* **Weak-chapter practice**: the result page and the Progress page offer "Practice" drills (up to 12 questions, new ones first) built from the chapters where the student lost the most marks. Practice sets are saved like any attempt and shown as "practice set" in history and reports; they never count as papers.
 * **Scores & grades**: Distinction ≥ 75 %, First Class ≥ 60 %, Second Class ≥ 45 %, Pass Class ≥ 35 % (`BOARD.passPercent`).
 * **Progress dashboard**: score trend, per-subject averages, weak chapters, history of every attempt.
 * **Streaks and activity heatmap**: current and longest day streak, a GitHub-style 52-week heatmap of tests per day, last-14-day test time.
@@ -128,8 +132,19 @@ window.PAPERS.push({
 * Check every question against an official copy (https://mahahsscboard.in) before tagging a year.
 * Register the new file in `index.html` (after `config.js`/`lib.js`, before `backend.js`). A validator that checks marks per part, duplicate ids and MCQ answer indices is easy to rerun in Node; see how `window.PAPERS` is built.
 
+## Checking the code
+
+```powershell
+node tools/validate.js            # question bank: ids, types, marks, MCQ answer index, HTML balance, totals (add --verbose for warnings)
+node tools/mock-ai.mjs            # 40 checks of worker/worker.js against a fake AI provider (grader, verifier, fallback, tutor, limits, /stats)
+node tools/mock-ai.mjs --serve    # same fake provider as a local Worker on :8787 for browser testing
+```
+
+To try the AI in a browser without keys: run the `--serve` line, open the site on `localhost`, and in the console set `localStorage['ssc.ai.endpoint']='http://localhost:8787'`, then reload. (The override only works on localhost.) In the fake provider an answer containing "correct" earns full marks, "half" earns half.
+
 ## Not verified — please check
 
+* The Geography total of 28 marks is the project's configured value, not checked against the board's own paper.
 * The Science, Geography, English, Hindi and Marathi layouts (see above); the History mark split.
 * Pass mark: 35 % is used (`BOARD.passPercent`); some sources say 33 %.
 * Whether a 2021 SSC exam was held is unconfirmed; it is shown as "not held" in `YEARS`.
