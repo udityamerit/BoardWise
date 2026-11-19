@@ -883,7 +883,14 @@ function viewResult(id) {
     c.msgs.push({ role: 'user', content: text.slice(0, 700) }); c.draft = ''; c.err = ''; c.busy = true; paintTutor(qid);
     let r; try { r = await AIG.tutor({ q: info.q, answer: info.ans, awarded: info.got, history, message: text }); } catch (e) { r = { error: 'net' }; }
     c.busy = false;
-    if (r && r.reply) c.msgs.push({ role: 'assistant', content: r.reply }); else { c.err = TERR[(r && r.error) || 'busy'] || TERR.busy; c.msgs.pop(); c.draft = text; }
+    const code = r && r.error;
+    if (r && r.reply) c.msgs.push({ role: 'assistant', content: r.reply });
+    else if (code === 'limit' || code === 'signin' || code === 'off') { c.err = TERR[code]; c.msgs.pop(); c.draft = text; }
+    else {                                        /* service old / down / busy / offline: answer from the built-in tutor instead of showing an error */
+      let rep = ''; try { rep = AIG.offlineTutor({ q: info.q, answer: info.ans, message: text }); } catch (e) {}
+      if (rep) c.msgs.push({ role: 'assistant', content: rep + '\n\n(Built-in tutor: the AI service is not reachable right now, so this comes from the model answer.)' });
+      else { c.err = TERR[code] || TERR.busy; c.msgs.pop(); c.draft = text; }
+    }
     paintTutor(qid, true);
   }
   function bindTutor(root) {

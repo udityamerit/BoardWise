@@ -69,5 +69,26 @@ async function tutor(c) {
   } catch (e) { return { error: 'net' }; } finally { clearTimeout(timer); }
 }
 
-window.AIG = { enabled, grade, tutor, _text: text };
+/* Built-in tutor: used whenever the AI service is old, down, busy or offline, so the tutor never dead-ends.
+   It works only from the question, its model answer and the student's answer (no AI involved). */
+function offlineTutor(c) {
+  const q = c.q, msg = String(c.message || '').toLowerCase(), sol = text(q.solution).trim();
+  const steps = sol.split(/\n+|(?<=[.!?])\s+(?=[A-Z0-9(])/).map(s => s.trim()).filter(s => s.length > 2).slice(0, 8);
+  const stepList = steps.length > 1 ? steps.map((s, i) => (i + 1) + '. ' + s).join('\n') : sol;
+  const right = q.options && q.answer != null ? String.fromCharCode(65 + q.answer) + '. ' + text(q.options[q.answer]) : '';
+  const mine = String(c.answer || '').trim(), has = mine !== '';
+  const head = right ? '**Correct answer: ' + right + '**\n\n' : '';
+  if (/similar|another|practice question|एक और|और प्रश्न/.test(msg)) {
+    const pool = []; try { (window.PAPERS || []).forEach(p => (p.sections || []).forEach(s => (s.questions || []).forEach(x => { if (x.id !== q.id && x.chapter === q.chapter && x.type === q.type && !s.passage) pool.push(x); }))); } catch (e) {}
+    if (pool.length) { const x = pool[Math.floor(Math.random() * pool.length)]; return '**Try this one from the same chapter (' + x.marks + ' mark' + (x.marks > 1 ? 's' : '') + '):**\n\n' + text(x.q) + (x.options ? '\n' + x.options.map((o, i) => String.fromCharCode(65 + i) + ') ' + text(o)).join('\n') : '') + '\n\nUse **Practice weak chapters** on the result page for a full set with answers.'; }
+  }
+  if (/wrong|mistake|galat|गलत|why/.test(msg) && has) {
+    if (right) return head + 'You chose **' + mine + '**. ' + (mine.charAt(0) === String.fromCharCode(65 + q.answer) ? 'That is the right option.' : 'That is not the one the model answer gives.') + '\n\n**Why:**\n' + stepList;
+    return 'Your answer:\n' + mine.slice(0, 600) + '\n\nCompare it line by line with the model answer. Anything missing from yours is where marks were lost:\n\n' + stepList;
+  }
+  if (/[ऀ-ॿ]|hindi|hindee/.test(msg)) return 'The Hindi explanation needs the AI tutor, which is not reachable right now. Here is the model answer meanwhile:\n\n' + head + stepList;
+  return head + '**Step by step:**\n' + stepList + (steps.length > 1 ? '\n\nTip: learn the key terms in bold in the model answer; examiners give marks for each point.' : '');
+}
+
+window.AIG = { enabled, grade, tutor, offlineTutor, _text: text };
 })();
