@@ -1,6 +1,6 @@
 # BoardWise AI examiner (Cloudflare Worker)
 
-Marks students' written answers with AI models through OpenRouter. The OpenRouter key lives **only** in this Worker
+Marks students' written answers with AI models (MiniMax first, OpenRouter models as backup). The API keys live **only** in this Worker
 as a secret, so students never enter a key and it is never in the website's files or in GitHub.
 
 ## How it works ("deep agent")
@@ -17,7 +17,8 @@ Only signed-in students (Firebase sign-in token) can call it, only from the allo
 ```powershell
 cd worker
 npx wrangler login
-npx wrangler secret put OPENROUTER_API_KEY     # paste the key when prompted — it is stored by Cloudflare, not in any file
+npx wrangler secret put MINIMAX_API_KEY        # paste the MiniMax key when prompted — stored by Cloudflare, not in any file
+npx wrangler secret put OPENROUTER_API_KEY     # optional backup provider
 npx wrangler deploy
 ```
 
@@ -33,11 +34,11 @@ Commit and push; written answers are now marked by the AI examiner. Check it is 
 
 | Var | Meaning |
 |---|---|
-| `MODELS` | comma-separated OpenRouter model ids, best first. Mix free and paid models so there is always a fallback. |
+| `MODELS` | comma-separated `provider:model` ids, best first (`minimax:MiniMax-M3.1-Flash`; no prefix = OpenRouter). Providers without a key are skipped. |
+| `MINIMAX_EFFORT` | MiniMax thinking depth: low / medium / high / xhigh / max |
 | `DEEP` | `1` grader + verifier (default), `0` grader only |
 | `ALLOWED_ORIGINS` | sites allowed to call the Worker |
 | `FIREBASE_PROJECT_ID` | whose sign-in tokens are accepted |
 | `ALLOW_ANON` | `1` lets local-only accounts use it too (per-IP limit) |
 
-Free OpenRouter models have daily limits; adding a few dollars of credit raises them a lot and lets the paid models in the list take over smoothly.
-Rotate the key any time with `npx wrangler secret put OPENROUTER_API_KEY` again — no site change needed.
+Rotate a key any time by running its `secret put` again — no site change needed.

@@ -12,16 +12,29 @@
    Every step walks a model chain: when a model is rate-limited (429), out of credit (402), missing (404) or
    fails/returns junk, it is put on a cool-down and the next model is used, so students never see an error.
 
-   Secrets / config (wrangler.toml [vars] and `wrangler secret put OPENROUTER_API_KEY`):
-     OPENROUTER_API_KEY   secret — never commit it
-     MODELS               comma-separated model ids, best first (see wrangler.toml)
+   Secrets / config (wrangler.toml [vars] and `wrangler secret put <NAME>`):
+     MINIMAX_API_KEY      secret — never commit it (MiniMax models, entries written "minimax:MiniMax-M3.1-Flash")
+     OPENROUTER_API_KEY   secret — optional backup provider (entries without a prefix)
+     MODELS               comma-separated "provider:model" ids, best first (see wrangler.toml)
      ALLOWED_ORIGINS      comma-separated site origins allowed to call this Worker
      FIREBASE_PROJECT_ID  project whose sign-in tokens are accepted
      ALLOW_ANON           "1" to also accept students on local-only accounts (IP rate-limited)  */
 
-const OPENROUTER = 'https://openrouter.ai/api/v1/chat/completions';
+/* Providers. A model entry is "provider:model-id"; no prefix means OpenRouter. A provider whose key is not set is skipped. */
+const PROVIDERS = {
+  minimax:    { url: 'https://api.minimax.io/v1/chat/completions', key: e => e.MINIMAX_API_KEY, extra: e => ({ reasoning_effort: e.MINIMAX_EFFORT || 'medium' }) },
+  openrouter: { url: 'https://openrouter.ai/api/v1/chat/completions', key: e => e.OPENROUTER_API_KEY, extra: () => ({}),
+                headers: e => ({ 'HTTP-Referer': e.SITE_URL || 'https://udityamerit.github.io/BoardWise/', 'X-Title': 'BoardWise AI examiner' }) }
+};
+function spec(entry) {
+  const i = entry.indexOf(':'), p = i > 0 ? entry.slice(0, i) : '';
+  return PROVIDERS[p] ? { provider: p, model: entry.slice(i + 1) } : { provider: 'openrouter', model: entry };
+}
+const hasKey = (env, entry) => !!PROVIDERS[spec(entry).provider].key(env);
 const JWKS = 'https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com';
 const DEFAULT_MODELS = [
+  'minimax:MiniMax-M3.1-Flash',
+  'minimax:MiniMax-M3',
   'nvidia/nemotron-3-ultra-550b-a55b:free',
   'google/gemma-4-31b-it:free',
   'nvidia/nemotron-3.5-super-vl:free',
@@ -138,15 +151,15 @@ function cleanResults(obj, items) {
 /* ---------- OpenRouter call with model fallback ---------- */
 function modelList(env) {
   const l = String(env.MODELS || '').split(',').map(s => s.trim()).filter(Boolean);
-  return l.length ? l : DEFAULT_MODELS;
+  return (l.length ? l : DEFAULT_MODELS).filter(m => hasKey(env, m));   // only models whose provider has a key
 }
-async function callModel(env, model, messages, signal) {
-  const r = await fetch(OPENROUTER, {
+async function callModel(env, entry, messages, signal) {
+  const { provider, model } = spec(entry), P = PROVIDERS[provider];
+  return fetch(P.url, {
     method: 'POST', signal,
-    headers: { 'Authorization': 'Bearer ' + env.OPENROUTER_API_KEY, 'Content-Type': 'application/json', 'HTTP-Referer': env.SITE_URL || 'https://udityamerit.github.io/BoardWise/', 'X-Title': 'BoardWise AI examiner' },
-    body: JSON.stringify({ model, messages, temperature: 0, max_tokens: 4000 })
+    headers: Object.assign({ 'Authorization': 'Bearer ' + P.key(env), 'Content-Type': 'application/json' }, P.headers ? P.headers(env) : {}),
+    body: JSON.stringify(Object.assign({ model, messages, temperature: 0, max_tokens: 6000 }, P.extra(env)))
   });
-  return r;
 }
 /* walks the chain until one model returns usable marks; `prefer` models are tried after `avoid` ones */
 async function runChain(env, messages, items, avoid, log) {
@@ -162,7 +175,7 @@ async function runChain(env, messages, items, avoid, log) {
       if (r.status === 404 || r.status === 400) { cool.set(model, now() + 1800000); log.push(model + ':' + r.status); continue; }
       if (!r.ok) { cool.set(model, now() + 30000); log.push(model + ':' + r.status); continue; }
       const data = await r.json();
-      if (data.error) { cool.set(model, now() + 60000); log.push(model + ':err'); continue; }
+      if (data.error || (data.base_resp && data.base_resp.status_code)) { cool.set(model, now() + 60000); log.push(model + ':err'); continue; }
       const text = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
       const res = cleanResults(parseJson(text), items);
       if (!res) { log.push(model + ':badjson'); continue; }
@@ -212,9 +225,9 @@ export default {
     const url = new URL(req.url), cors = corsFor(req, env);
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors.headers });
     if (!cors.ok) return json({ error: 'origin_not_allowed' }, 403, cors.headers);
-    if (url.pathname === '/health') return json({ ok: true, configured: !!env.OPENROUTER_API_KEY, models: modelList(env).length }, 200, cors.headers);
+    if (url.pathname === '/health') return json({ ok: true, configured: modelList(env).length > 0, models: modelList(env).length }, 200, cors.headers);
     if (url.pathname !== '/grade' || req.method !== 'POST') return json({ error: 'not_found' }, 404, cors.headers);
-    if (!env.OPENROUTER_API_KEY) return json({ error: 'not_configured' }, 503, cors.headers);
+    if (!modelList(env).length) return json({ error: 'not_configured' }, 503, cors.headers);
 
     /* who is asking */
     const auth = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '');

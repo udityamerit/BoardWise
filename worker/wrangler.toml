@@ -12,8 +12,12 @@ ALLOW_ANON = "0"
 # "1" = grader + verifier (deep agent). "0" = grader only (half the calls).
 DEEP = "1"
 # Best first. When one is rate-limited / out of credit / failing, the next one is used automatically.
-# Ids were read from OpenRouter's public model list; edit freely (https://openrouter.ai/models).
-MODELS = "nvidia/nemotron-3-ultra-550b-a55b:free,google/gemma-4-31b-it:free,nvidia/nemotron-3.5-super-vl:free,qwen/qwen3.8-flash,nvidia/nemotron-3-ultra-550b-a55b,openrouter/free"
+# "minimax:<id>" uses your MiniMax key; ids without a prefix go through OpenRouter (only if that key is set).
+# MiniMax ids are from platform.minimax.io/docs; OpenRouter ids from openrouter.ai/models. Edit freely.
+MODELS = "minimax:MiniMax-M3.1-Flash,minimax:MiniMax-M3,nvidia/nemotron-3-ultra-550b-a55b:free,google/gemma-4-31b-it:free,qwen/qwen3.8-flash,openrouter/free"
+# MiniMax thinking depth for marking: low | medium | high | xhigh | max (higher = slower, more careful)
+MINIMAX_EFFORT = "medium"
 
-# The API key is NOT stored here. Set it once from this folder with:
-#   npx wrangler secret put OPENROUTER_API_KEY
+# API keys are NOT stored here. Set them once from this folder with:
+#   npx wrangler secret put MINIMAX_API_KEY
+#   npx wrangler secret put OPENROUTER_API_KEY      (optional backup)
