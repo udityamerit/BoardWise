@@ -13,3 +13,7 @@ node_modules/
 serviceAccount*.json
 *-firebase-adminsdk-*.json
 .firebaserc.local
+
+# Cloudflare Worker local secrets
+.dev.vars
+.wrangler/

@@ -298,3 +298,11 @@ body.testing .userbox{display:none}
 .selfmark.manual{background:#eef2ff}
 @media(max-width:600px){.steps li{padding:8px}.steps .mk{max-width:34%;font-size:.7rem}.steps .gv{white-space:normal}}
 @media print{.steps li{break-inside:avoid}.steps li.fin,.steps li.given,.steps .mk,.steps .sn{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+
+/* AI examiner */
+.selfmark.ai{background:#f1ecff}.selfmark.ai select{border-color:#c4b5fd}
+.aibar{background:#f1ecff;border:1px solid #d9cffd;border-radius:10px;padding:8px 12px;font-size:.9rem}
+.aibar .spin{display:inline-block;width:12px;height:12px;border:2px solid #c4b5fd;border-top-color:#6d4aff;border-radius:50%;animation:aispin .8s linear infinite;vertical-align:-2px}
+@keyframes aispin{to{transform:rotate(360deg)}}
+.aifb{margin-top:8px;padding:8px 12px;border-left:3px solid #8b6cff;background:#faf8ff;border-radius:0 8px 8px 0;font-size:.92rem}
+@media print{.aibar .spin{display:none}}

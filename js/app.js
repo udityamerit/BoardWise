@@ -85,6 +85,7 @@ function matchNum(q, ans) {
 /* Written answers are checked automatically against the bold final answers / key words of the model answer.
    The student can still override the marks (A.self) — that always wins. Cached: evaluate() runs on every render. */
 const autoCache = new Map();
+const aiRunning = new Set();   // attempts whose written answers are with the AI examiner right now
 function autoMark(q, v) {
   if (!window.CHK || q.type !== 'self' || !isAns(v)) return null;
   const k = q.id + '\u0001' + v; if (autoCache.has(k)) return autoCache.get(k);
@@ -102,7 +103,7 @@ function status(q, A) {
 }
 function evaluate(A) {
   const P = paperById(A.paperId), all = flat(P), qs = A.qids.map(id => all.find(q => q.id === id));
-  const r = { total: marksOf(qs), got: 0, correct: 0, wrong: 0, skip: 0, selfDone: 0, selfAuto: 0, selfPending: 0, secs: {}, chaps: {}, rows: [], tsecs: {}, tracked: !!(A.tq && Object.keys(A.tq).length), changes: 0 };
+  const r = { total: marksOf(qs), got: 0, correct: 0, wrong: 0, skip: 0, selfDone: 0, selfAuto: 0, selfAi: 0, selfPending: 0, secs: {}, chaps: {}, rows: [], tsecs: {}, tracked: !!(A.tq && Object.keys(A.tq).length), changes: 0 };
   const tq = A.tq || {};
   const info = {};
   groupBySec(qs).forEach(g => {
@@ -111,8 +112,10 @@ function evaluate(A) {
       const st = status(q, A); let got = 0, pending = false, src = '', auto = null;
       if (st === 'correct') got = q.marks;
       else if (st === 'self') {
+        auto = autoMark(q, A.answers[q.id]);
         if (A.self && A.self[q.id] != null) { got = Math.min(A.self[q.id], q.marks); src = 'manual'; }
-        else if ((auto = autoMark(q, A.answers[q.id]))) { got = Math.min(auto.marks, q.marks); src = 'auto'; }
+        else if (A.ai && A.ai[q.id] && A.ai[q.id].m != null) { got = Math.min(A.ai[q.id].m, q.marks); src = 'ai'; }
+        else if (auto) { got = Math.min(auto.marks, q.marks); src = 'auto'; }
         else pending = true;
       }
       return { q, st, got, pending, src, auto, i };
@@ -128,7 +131,7 @@ function evaluate(A) {
     const x = info[q.id];
     if (x.counted) {
       if (x.pending) r.selfPending++;
-      if (x.src === 'auto') r.selfAuto++;
+      if (x.src === 'auto') r.selfAuto++; else if (x.src === 'ai') r.selfAi++;
       if (x.st === 'correct') r.correct++; else if (x.st === 'wrong') r.wrong++; else if (x.st === 'skip') r.skip++; else if (!x.pending) r.selfDone++;
       r.got += x.got;
       const sk = q.sec.title; (r.secs[sk] = r.secs[sk] || { got: 0, tot: 0 }); r.secs[sk].got += x.got; r.secs[sk].tot += q.marks;
@@ -615,6 +618,30 @@ function viewResult(id) {
   app.innerHTML = `<div class="crumbs"><a href="#/">Subjects</a> › <a href="#/subject/${S.key}">${esc(S.name)}</a> › Result</div>
     <h1>Result — ${esc(P.title)}</h1><div id="sum"></div><div id="rev"></div>`;
   let filter = 'all';
+  let aiState = null;   // null | 'run' | 'fail'
+  const aiLive = () => location.hash === '#/result/' + A.id;
+  function aiBanner(r) {
+    if (aiState === 'run') return '<p class="aibar run" style="margin-top:10px"><span class="spin"></span> <b>AI examiner is marking your written answers…</b> your score will update in a moment.</p>';
+    if (r.selfAi) return `<p class="aibar" style="margin-top:10px">🤖 <b>${r.selfAi}</b> written answer(s) were marked by the AI examiner, double-checked by a second model. Disagree? Change the marks in the review — yours always win.</p>`;
+    if (aiState === 'fail') return '<p class="small muted" style="margin-top:10px">The AI examiner is busy right now, so the built-in checker was used. Reopen this result later to try the AI examiner again.</p>';
+    return '';
+  }
+  /* Written answers that nobody has marked yet go to the AI examiner. Silent failure: the rule-based marks stay. */
+  async function runAI() {
+    if (!window.AIG || !AIG.enabled() || aiRunning.has(A.id)) return;
+    const todo = [];
+    flat(P).forEach(q => { const v = A.answers[q.id]; if (q.type === 'self' && A.qids.includes(q.id) && isAns(v) && !(A.self && A.self[q.id] != null) && !(A.ai && A.ai[q.id])) todo.push({ q, answer: v }); });
+    if (!todo.length) return;
+    aiRunning.add(A.id); aiState = 'run'; summary();
+    let res = null; try { res = await AIG.grade(todo); } catch (e) { res = null; }
+    aiRunning.delete(A.id);
+    if (res) {
+      A.ai = Object.assign({}, A.ai, res);
+      const all = rawAttempts().slice(); const i = all.findIndex(a => a.id === A.id); if (i >= 0) { all[i].ai = A.ai; saveAttempts(all); }
+    }
+    aiState = res && Object.keys(res).length === todo.length ? null : 'fail';
+    if (aiLive()) { const y = window.scrollY; summary(); review(); window.scrollTo(0, y); }
+  }
 
   function summary() {
     const r = evaluate(A), g = gradeOf(r.pct), passed = r.pct >= BOARD.passPercent;
@@ -624,6 +651,7 @@ function viewResult(id) {
       <div class="ring ${g.cls}" style="--p:${r.pct}"><div><div><b>${fmt(r.got)}</b><br><span class="muted">/ ${r.total}</span></div></div></div>
       <div style="flex:1;min-width:260px"><h2 style="margin-bottom:4px">${fmt(r.pct)}% — ${g.label}</h2>
         <span class="chip ${passed ? 'ok' : 'bad'}">${passed ? 'PASS' : 'BELOW PASS MARK'} (pass ${BOARD.passPercent}%)</span>
+        ${aiBanner(r)}
         ${r.selfAuto ? `<p class="small" style="margin-top:10px">✅ <b>${r.selfAuto}</b> written answer(s) were checked automatically against the model answer. Disagree with one? Change its marks in the review below — your marks always win.</p>` : ''}
         ${r.selfPending ? `<p class="small" style="margin-top:10px"><b>${r.selfPending}</b> written answer(s) cannot be checked automatically (drawings, proofs, long explanations) — scroll to the review and award yourself marks against the model answer. Score updates live.</p>` : ''}
         <p class="small muted">Time taken: ${dur(r.secsTaken)} of ${dur(A.endsAt - A.startedAt === 0 ? 0 : (A.endsAt - A.startedAt) / 1000)}${sk.cur ? ` · <b>🔥 ${sk.cur}-day streak</b>` : ''}</p></div>
@@ -657,17 +685,19 @@ function viewResult(id) {
       else if (q.type === 'num') body = `<div class="your"><b>Your answer:</b> ${ansDisplay(q, v)}</div><div><b>Correct answer:</b> ${esc(q.accept[0])}</div>`;
       else body = `<div class="your"><b>Your answer:</b>\n${ansDisplay(q, v)}</div>`;
       const manual = A.self && A.self[q.id] != null;
+      const ai = A.ai && A.ai[q.id];
       const why = !auto ? '' : auto.kind === 'answer' ? `Matched ${fmt(auto.hit)} of ${auto.pts} final answer${auto.pts > 1 ? 's' : ''} in the model answer.` : `Covers ${fmt(auto.hit)} of ${auto.pts} key points of the model answer.`;
-      const mark = q.type === 'self' && isAns(v) ? `<div class="selfmark ${msrc || 'pending'}"><b>${auto && !manual ? 'Auto-checked' : manual ? 'Your marks' : 'Award yourself marks'}:</b>
-        <select data-q="${esc(q.id)}"><option value="">${auto ? `Auto: ${fmt(auto.marks)} / ${q.marks}` : '— choose —'}</option>${Array.from({ length: q.marks * 2 + 1 }, (_, i) => i / 2).map(m => `<option value="${m}" ${manual && A.self[q.id] === m ? 'selected' : ''}>${m} / ${q.marks}</option>`).join('')}</select>
-        <span class="small muted">${manual ? (auto ? 'You changed the marks — pick “Auto” to go back.' : 'Compare with the model answer below.') : auto ? esc(why) + ' Not right? Change it.' : 'This one cannot be auto-checked — compare with the model answer below.'}</span></div>` : '';
+      const mark = q.type === 'self' && isAns(v) ? `<div class="selfmark ${msrc || 'pending'}"><b>${manual ? 'Your marks' : ai ? '🤖 AI examiner' : auto ? 'Auto-checked' : 'Award yourself marks'}:</b>
+        <select data-q="${esc(q.id)}"><option value="">${ai ? `AI: ${fmt(ai.m)} / ${q.marks}` : auto ? `Auto: ${fmt(auto.marks)} / ${q.marks}` : '— choose —'}</option>${Array.from({ length: q.marks * 2 + 1 }, (_, i) => i / 2).map(m => `<option value="${m}" ${manual && A.self[q.id] === m ? 'selected' : ''}>${m} / ${q.marks}</option>`).join('')}</select>
+        <span class="small muted">${manual ? (auto || ai ? `You changed the marks — pick “${ai ? 'AI' : 'Auto'}” to go back.` : 'Compare with the model answer below.') : ai ? 'Marked by the AI examiner. Not right? Change it.' : auto ? esc(why) + ' Not right? Change it.' : 'This one cannot be auto-checked — compare with the model answer below.'}</span></div>` : '';
       const src = q.year ? `<span class="chip ok">Asked in Board ${esc(q.year)}</span>` : '';
       const extra = !counted ? (st === 'skip' ? '<span class="chip gray" title="This section only asks for some of its questions, and you answered enough others">Optional — you did not need this one</span>' : '<span class="chip gray">Extra answer — not counted</span>') : '';
-      const stLabel = st === 'self' ? (msrc === 'auto' ? 'Auto-checked' : msrc === 'manual' ? 'Self-marked' : 'Needs your marks') : st === 'skip' ? (counted ? 'Not attempted' : 'Skipped') : st;
+      const stLabel = st === 'self' ? (msrc === 'ai' ? 'AI-marked' : msrc === 'auto' ? 'Auto-checked' : msrc === 'manual' ? 'Self-marked' : 'Needs your marks') : st === 'skip' ? (counted ? 'Not attempted' : 'Skipped') : st;
       const stCls = st === 'correct' ? 'ok' : st === 'wrong' ? 'bad' : st === 'self' && msrc ? (got >= q.marks ? 'ok' : got > 0 ? 'warn' : 'bad') : 'gray';
       return `<div class="card rev ${st} ${counted ? '' : 'extra'}"><div class="qhead"><div><span class="chip">Q${n}</span> <span class="chip gray">${esc(q.sec.title)}</span> <span class="chip gray">${esc(q.chapter || '')}</span> ${src}${r.tracked ? ` <span class="chip gray" title="Time you spent on this question">⏱ ${dur(t)}</span>` : ''}${chg ? ` <span class="chip gray" title="Times you changed your answer">changed ${chg}×</span>` : ''}</div>
         <div>${extra} <span class="chip ${stCls}">${stLabel}</span> <b>${counted ? fmt(got) : '–'} / ${q.marks}</b></div></div>
         <div class="qtext">${q.q}</div>${body}${mark}
+        ${ai && !manual && (ai.fb || (ai.missing || []).length) ? `<div class="aifb">${ai.fb ? esc(ai.fb) : ''}${(ai.missing || []).length ? `<div class="small muted">Not covered: ${ai.missing.map(esc).join('; ')}</div>` : ''}</div>` : ''}
         <div class="sol"><b>${q.type === 'self' ? 'Model answer, step by step' : 'Solution'}:</b>${solHtml(q)}</div></div>`;
     }).join('') : '<div class="empty">Nothing in this filter.</div>';
     document.querySelectorAll('[data-q]').forEach(sel => sel.onchange = () => {
@@ -677,7 +707,7 @@ function viewResult(id) {
       const y = window.scrollY; summary(); review(); window.scrollTo(0, y);
     });
   }
-  summary(); review();
+  summary(); review(); runAI();
 }
 
 /* ---------- history ---------- */

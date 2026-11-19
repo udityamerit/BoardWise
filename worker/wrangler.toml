@@ -1,0 +1,19 @@
+name = "boardwise-ai"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+
+[vars]
+# Sites allowed to call this Worker (add your own domain if you use one).
+ALLOWED_ORIGINS = "https://udityamerit.github.io,http://localhost"
+# Sign-in tokens from this Firebase project are accepted (same project as js/data/backend.js).
+FIREBASE_PROJECT_ID = "ssc-board-prep"
+# "1" also lets students on local-only accounts use it (rate-limited per IP). Keep "0" once Firebase sign-in is live.
+ALLOW_ANON = "0"
+# "1" = grader + verifier (deep agent). "0" = grader only (half the calls).
+DEEP = "1"
+# Best first. When one is rate-limited / out of credit / failing, the next one is used automatically.
+# Ids were read from OpenRouter's public model list; edit freely (https://openrouter.ai/models).
+MODELS = "nvidia/nemotron-3-ultra-550b-a55b:free,google/gemma-4-31b-it:free,nvidia/nemotron-3.5-super-vl:free,qwen/qwen3.8-flash,nvidia/nemotron-3-ultra-550b-a55b,openrouter/free"
+
+# The API key is NOT stored here. Set it once from this folder with:
+#   npx wrangler secret put OPENROUTER_API_KEY

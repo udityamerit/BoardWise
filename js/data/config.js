@@ -1,6 +1,11 @@
 /* Global config: subjects, board pattern, years.  Papers register themselves into window.PAPERS. */
 window.PAPERS = [];
 
+/* AI examiner service (the Cloudflare Worker in /worker). Paste its https URL here after deploying, e.g.
+   endpoint: "https://boardwise-ai.<your-subdomain>.workers.dev". Leave '' to use only the built-in rule-based checker.
+   Never put an API key in this file — the key lives in the Worker as a secret. */
+window.AI_CFG = { endpoint: '' };
+
 /* Question builders (keeps data files short).
    mcq : auto-marked, answer = index of correct option
    num : auto-marked short answer; accept = list of accepted answers (numbers/fractions compared numerically)

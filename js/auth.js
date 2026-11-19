@@ -178,6 +178,8 @@ const AUTH = {
   status() { return state; },
   pending() { return outbox.length; },
   forceLocal() { return localStorage.getItem('ssc.forceLocal') === '1'; },
+  /* Firebase ID token of the signed-in student (null in local-account mode) — sent to the AI marking service so only students can use it */
+  async idToken() { if (MODE !== 'firebase' || !sess) return null; try { return await token(); } catch (e) { return null; } },
 
   async init() {
     const s = store.get('ssc.session', null);
