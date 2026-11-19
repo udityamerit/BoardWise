@@ -164,8 +164,8 @@ function stepsRaw(html) {
       if (ch === ';') { cur += ';'; push(); continue; }
       let m;
       if ((m = /^ ?(⇒|=>|⟹|→) /.exec(rest)) && cur.trim()) { push(); cur = '⇒ '; i += m[0].length - 1; continue; }
-      if (ch === '.' && /^\.( |$)/.test(rest) && !ABBR.test(stripTags(cur) + '.') && !/^\s*\d{1,2}$/.test(stripTags(cur))
-          && (/^\. ?$/.test(rest) || /^\. +(?:<|[A-Z0-9(\[₹√∠Δ]|[ऀ-ॿ])/.test(rest) || /^\. +[A-Za-zθσμ][\w₀-₉]{0,3}(?:\([^)]{0,8}\))? ?=[^=]/.test(rest))) { cur += '.'; push(); continue; }
+      if (ch === '.' && /^\.( |$)/.test(rest) && (!ABBR.test(stripTags(cur) + '.') || /^\. +[A-Z][a-z]{2,9} ?=[^=]/.test(rest)) && !/^\s*\d{1,2}$/.test(stripTags(cur))
+          && (/^\. ?$/.test(rest) || /^\. +(?:<|[A-Z0-9(\[₹√∠ΔΣΠ]|[ऀ-ॿ])/.test(rest) || /^\. +[A-Za-zθσμΣΠ][\w₀-₉]{0,3}(?:\([^)]{0,8}\))? ?=[^=]/.test(rest))) { cur += '.'; push(); continue; }
       if ((m = /^ \((?:i{1,3}|iv|v|vi{0,3}|[a-e]|\d)\) /.exec(rest)) && cur.trim() && !/[:(]$/.test(cur.trim())) { push(); continue; }
       if (ch === ' ' && /^ (?:\d{1,2}[.)]) +(?:<|[A-Za-z])/.test(rest) && cur.trim() && /[.:;)]$/.test(cur.trim())) { push(); continue; }
     }
@@ -201,6 +201,17 @@ function steps(html) {
   let raw = stepsRaw(html);
   /* a leading "a = 10, d = 5, n = 20:" becomes a "given" list, the rest of that sentence its own step */
   const out = [];
+  /* "x = −51/−17 = 3, y = −34/−17 = 2": one line per variable so each value sits next to its own name */
+  const pushStep = (text, marks, onlyMulti) => {
+    const lead = /^\s*(?:(⇒)\s*|\d{1,2}[.)]\s+)/.exec(text);
+    const body = lead ? text.slice(lead[0].length) : text;
+    let multi = splitCommaTop(body.replace(/\.$/, ''));
+    /* "x = 5, 15, 25": bare values after an assignment belong to that assignment */
+    multi = multi.reduce((a, it) => { if (a.length && !ASSIGN.test(plain(it)) && /^[-−+]?[\d.\/]+[^=]{0,12}$/.test(plain(it))) a[a.length - 1] += ', ' + it; else a.push(it); return a; }, []);
+    if (multi.length >= 2 && multi.length <= 6 && multi.every(it => ASSIGN.test(plain(it)))) { multi.forEach((it, k) => out.push({ kind: 'step', html: (k === 0 && lead && lead[1] ? '⇒ ' : '') + it, marks: k === multi.length - 1 ? marks : null })); return; }
+    if (onlyMulti) return false;
+    out.push({ kind: 'step', html: text.replace(/^\s*⇒\s*/, '⇒ ').trim(), marks });
+  };
   raw.forEach(p => {
     let text = p, marks = null, m;
     /* trailing mark annotations: "(1 mark)", "(Δ 1, substitution 1, roots 1)", "(2 marks)" */
@@ -211,14 +222,13 @@ function steps(html) {
     const colon = /^((?:[^:<]|<[^>]*>)*?):\s+(.*)$/.exec(text);
     if (colon) {
       const g = givenList(colon[1].replace(/^(given|let|here)\s*[:,]?\s*/i, ''));
-      if (g) { out.push({ kind: 'given', items: g }); if (colon[2].trim()) out.push({ kind: 'step', html: colon[2].trim(), marks }); return; }
+      if (g) { out.push({ kind: 'given', items: g }); if (colon[2].trim()) pushStep(colon[2].trim(), marks); return; }
+      /* "Class marks 1, 3, 5: Σfx = …, Σf = …": the label is a line of its own, then one line per calculation */
+      if (plain(colon[1]).length < 70 && !/\(\d+ marks?\)/i.test(colon[1])) { const mark = out.length; out.push({ kind: 'step', html: colon[1].trim() + ':', marks: null }); if (pushStep(colon[2].trim(), marks, true) !== false) return; out.length = mark; }
     }
     const g = givenList(text.replace(/\.$/, ''));
     if (g && g.length >= 2) { out.push({ kind: 'given', items: g, marks }); return; }
-    /* "x = −51/−17 = 3, y = −34/−17 = 2": one line per variable so each value sits next to its own name */
-    const multi = splitCommaTop(text.replace(/\.$/, ''));
-    if (multi.length >= 2 && multi.length <= 6 && multi.every(it => ASSIGN.test(plain(it)))) { multi.forEach((it, k) => out.push({ kind: 'step', html: it, marks: k === multi.length - 1 ? marks : null })); return; }
-    out.push({ kind: 'step', html: text.replace(/^\s*⇒\s*/, '⇒ ').trim(), marks });
+    pushStep(text, marks);
   });
   /* the last step that carries the bold result is the answer */
   let last = out.length - 1; while (last >= 0 && !(out[last].kind === 'step' && /<b>/i.test(out[last].html))) last--;
