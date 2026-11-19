@@ -78,7 +78,19 @@ function matchNum(q, ans) {
   let ny = toNum(y);
   if (isNaN(ny)) ny = toNum(y.replace(/[a-z°²³µΩ]+$/i, '')); // tolerate trailing units, e.g. "10cm"
   const tol = q.tol != null ? q.tol : 1e-6;
-  return (q.accept || []).some(a => { const x = norm(a); if (x === y) return true; const nx = toNum(x); return !isNaN(nx) && !isNaN(ny) && Math.abs(nx - ny) <= tol; });
+  if ((q.accept || []).some(a => { const x = norm(a); if (x === y) return true; const nx = toNum(x); return !isNaN(nx) && !isNaN(ny) && Math.abs(nx - ny) <= tol; })) return true;
+  /* typed with a variable or unit around it ("x = 3", "Rs. 1,150", "(2, 1)", "3 cm"): compare the numbers themselves */
+  try { return !!(window.CHK && window.CHK.looseNum(q.accept, ans, q.tol)); } catch (e) { return false; }
+}
+/* Written answers are checked automatically against the bold final answers / key words of the model answer.
+   The student can still override the marks (A.self) — that always wins. Cached: evaluate() runs on every render. */
+const autoCache = new Map();
+function autoMark(q, v) {
+  if (!window.CHK || q.type !== 'self' || !isAns(v)) return null;
+  const k = q.id + '\u0001' + v; if (autoCache.has(k)) return autoCache.get(k);
+  let r = null; try { r = window.CHK.auto(q, String(v)); } catch (e) { r = null; }
+  if (autoCache.size > 3000) autoCache.clear();
+  autoCache.set(k, r); return r;
 }
 const mcqIdx = v => { const t = String(v).trim(); return /^[A-Za-z]$/.test(t) ? t.toUpperCase().charCodeAt(0) - 65 : Number(t); };
 function status(q, A) {
@@ -90,16 +102,20 @@ function status(q, A) {
 }
 function evaluate(A) {
   const P = paperById(A.paperId), all = flat(P), qs = A.qids.map(id => all.find(q => q.id === id));
-  const r = { total: marksOf(qs), got: 0, correct: 0, wrong: 0, skip: 0, selfDone: 0, selfPending: 0, secs: {}, chaps: {}, rows: [], tsecs: {}, tracked: !!(A.tq && Object.keys(A.tq).length), changes: 0 };
+  const r = { total: marksOf(qs), got: 0, correct: 0, wrong: 0, skip: 0, selfDone: 0, selfAuto: 0, selfPending: 0, secs: {}, chaps: {}, rows: [], tsecs: {}, tracked: !!(A.tq && Object.keys(A.tq).length), changes: 0 };
   const tq = A.tq || {};
   const info = {};
   groupBySec(qs).forEach(g => {
     const n = need(g);
     const items = g.qs.map((q, i) => {
-      const st = status(q, A); let got = 0, pending = false;
+      const st = status(q, A); let got = 0, pending = false, src = '', auto = null;
       if (st === 'correct') got = q.marks;
-      else if (st === 'self') { if (A.self && A.self[q.id] != null) got = A.self[q.id]; else pending = true; }
-      return { q, st, got, pending, i };
+      else if (st === 'self') {
+        if (A.self && A.self[q.id] != null) { got = Math.min(A.self[q.id], q.marks); src = 'manual'; }
+        else if ((auto = autoMark(q, A.answers[q.id]))) { got = Math.min(auto.marks, q.marks); src = 'auto'; }
+        else pending = true;
+      }
+      return { q, st, got, pending, src, auto, i };
     });
     let keep = new Set(items.map(x => x.q.id));
     if (n < items.length) {
@@ -112,13 +128,14 @@ function evaluate(A) {
     const x = info[q.id];
     if (x.counted) {
       if (x.pending) r.selfPending++;
+      if (x.src === 'auto') r.selfAuto++;
       if (x.st === 'correct') r.correct++; else if (x.st === 'wrong') r.wrong++; else if (x.st === 'skip') r.skip++; else if (!x.pending) r.selfDone++;
       r.got += x.got;
       const sk = q.sec.title; (r.secs[sk] = r.secs[sk] || { got: 0, tot: 0 }); r.secs[sk].got += x.got; r.secs[sk].tot += q.marks;
       r.tsecs[sk] = (r.tsecs[sk] || 0) + (tq[q.id] || 0); r.changes += (A.chg && A.chg[q.id]) || 0;
       const ck = q.chapter || 'General'; (r.chaps[ck] = r.chaps[ck] || { got: 0, tot: 0 }); r.chaps[ck].got += x.got; r.chaps[ck].tot += q.marks;
     }
-    r.rows.push({ q, st: x.st, got: x.got, counted: x.counted, t: tq[q.id] || 0, chg: (A.chg && A.chg[q.id]) || 0 });
+    r.rows.push({ q, st: x.st, got: x.got, src: x.src, auto: x.auto, pending: x.pending, counted: x.counted, t: tq[q.id] || 0, chg: (A.chg && A.chg[q.id]) || 0 });
   });
   r.pct = r.total ? r.got / r.total * 100 : 0;
   r.nQ = r.correct + r.wrong + r.skip + r.selfDone + r.selfPending;           // questions that counted
@@ -382,7 +399,7 @@ function viewInstr(id) {
       <li>Total marks: <b>${paperMarks(P)}</b>. Time for the full paper: <b>${minutesFor(P, all)} minutes</b>. The timer cannot be paused; the test submits itself when time ends.</li>
       ${hasChoice ? '<li><b>Choices:</b> where a question says "Any N of M", answer the number asked. If you answer more, only your <b>best N</b> are counted.</li>' : ''}
       <li>There is <b>no negative marking</b>. Attempt every question.</li>
-      <li>MCQs and short numeric/word answers are <b>marked automatically</b>. Written answers are shown with a model answer after submission and <b>you award your own marks</b> against it — be honest, that is what makes the score useful.</li>
+      <li>MCQs and short numeric/word answers are <b>marked automatically</b>. Written answers are <b>checked automatically</b> against the model answer when you submit (final answers and key points). Drawings, proofs and long explanations cannot be checked by a computer, so for those you award your own marks — be honest, that is what makes the score useful. You can always correct the marks of any written answer in the review.</li>
       <li>Use the palette to jump between questions and the flag button to mark questions for review. Answers are saved automatically; refreshing the page will not lose them.</li>
       <li>Pass mark: ${BOARD.passPercent}%. The result shows grade, section-wise and chapter-wise performance, and you can print a report card.</li>
     </ul>
@@ -421,6 +438,7 @@ function viewTest() {
   /* Answers are stamped (A.ats) and merged with the stored copy on every save, so a second tab or a phone tab
      restored from the background can never overwrite a newer answer. A.tq = seconds spent per question, A.hid = seconds the page was hidden. */
   A.ats = A.ats || {}; A.tq = A.tq || {}; A.chg = A.chg || {}; A.hid = A.hid || 0;
+  let flush = () => {};   // writes whatever is typed in the answer box into the saved answers (set by draw)
   let done = false, vis = !document.hidden, hiddenAt = vis ? 0 : Date.now(), lastT = Date.now(), undo = null, tcount = 0;
   const pull = () => {
     const S = active(); if (!S || S.id !== A.id) return;
@@ -458,15 +476,16 @@ function viewTest() {
   }
   function doSubmit(auto) {
     if (done) return;
-    lap(); done = true; clearInterval(tick);
+    flush(); lap(); done = true; clearInterval(tick);
     A.submittedAt = Math.min(Date.now(), A.endsAt); A.v = 2;
     const arr = rawAttempts().filter(a => a.id !== A.id); arr.unshift(A); saveAttempts(arr);
     saveActive(null);
     if (auto) alert('Time is up — your test has been submitted.');
     go('#/result/' + A.id);
   }
-  function nav(i) { lap(); A.cur = i; save(); draw(); }
+  function nav(i) { flush(); lap(); A.cur = i; save(); draw(); }
   function finish() {
+    flush();
     const gaps = groups.map(g => ({ g, n: need(g), a: answeredIn(g) })).filter(x => x.a < x.n);
     const miss = gaps.reduce((s, x) => s + x.n - x.a, 0), flagged = qs.map((q, i) => ({ q, i })).filter(x => A.flags[x.q.id]);
     const total = groups.reduce((s, g) => s + need(g), 0), upto = groups.reduce((s, g) => s + Math.min(answeredIn(g), need(g)), 0);
@@ -489,6 +508,7 @@ function viewTest() {
   document.getElementById('submit').onclick = finish;
 
   const onVis = () => {
+    if (document.hidden) flush();
     lap(); vis = !document.hidden;
     if (!vis) { hiddenAt = Date.now(); saveActive(A); return; }
     if (hiddenAt) { A.hid += (Date.now() - hiddenAt) / 1000; hiddenAt = 0; }
@@ -499,9 +519,9 @@ function viewTest() {
     if (JSON.stringify(A.answers) !== before) draw();
     updTimer();
   };
-  const onHide = () => { lap(); if (!done) saveActive(A); };
+  const onHide = () => { flush(); lap(); if (!done) saveActive(A); };
   document.addEventListener('visibilitychange', onVis); window.addEventListener('pagehide', onHide);
-  testOff = () => { document.removeEventListener('visibilitychange', onVis); window.removeEventListener('pagehide', onHide); onHide(); done = true; const m = document.getElementById('submodal'); if (m) m.remove(); };
+  testOff = () => { document.removeEventListener('visibilitychange', onVis); window.removeEventListener('pagehide', onHide); onHide(); done = true; flush = () => {}; const m = document.getElementById('submodal'); if (m) m.remove(); };
 
   function secStat() {
     const el = document.getElementById('secstat'); if (!el) return;
@@ -554,7 +574,10 @@ function viewTest() {
       const pick = () => { setV(+r.value); document.querySelectorAll('.opt').forEach(o => o.classList.remove('sel')); r.closest('.opt').classList.add('sel'); };
       r.onchange = pick; r.onclick = pick;
     });
-    const ans = document.getElementById('ans'); if (ans) ans.oninput = () => setV(ans.value);
+    const ans = document.getElementById('ans');
+    flush = () => { const a = document.getElementById('ans'); if (a && !done && qs[A.cur] === q) setV(a.value); };
+    /* phone keyboards (autocorrect, voice, swipe) do not always fire 'input' for the last word: also save on change / blur / composition end */
+    if (ans) ['input', 'change', 'blur', 'compositionend', 'keyup'].forEach(ev => ans.addEventListener(ev, () => setV(ans.value)));
     document.getElementById('flag').onclick = () => { A.flags[q.id] = !A.flags[q.id]; if (!A.flags[q.id]) delete A.flags[q.id]; save(); draw(); };
     document.getElementById('prev').onclick = () => nav(A.cur - 1);
     document.getElementById('next').onclick = () => nav(A.cur + 1);
@@ -568,6 +591,22 @@ function viewTest() {
 }
 
 /* ---------- result ---------- */
+/* A model answer as numbered steps: givens as chips, one calculation per line, marks beside the step, the result highlighted. */
+function solHtml(q) {
+  const sol = q.solution || '';
+  let st = [];
+  try { st = window.CHK ? window.CHK.steps(sol) : []; } catch (e) { st = []; }
+  const plainish = !/<(table|ul|ol|svg|img|pre|div)\b/i.test(sol);
+  if (!plainish || st.length < 2) return `<div class="solraw">${sol}</div>`;
+  let n = 0;
+  const li = st.map(s => {
+    const mk = s.marks ? `<span class="mk" title="Marks for this step">${esc(s.marks)}</span>` : '';
+    if (s.kind === 'given') return `<li class="given"><span class="sn">Given</span><div class="sb">${s.items.map(x => `<span class="gv">${x}</span>`).join('')}</div>${mk}</li>`;
+    n++;
+    return `<li class="${s.kind === 'answer' ? 'fin' : 'st'}"><span class="sn">${s.kind === 'answer' ? '✔' : n}</span><div class="sb">${s.html}</div>${mk}</li>`;
+  }).join('');
+  return `<ol class="steps">${li}</ol>`;
+}
 function viewResult(id) {
   const A = attempts().find(a => a.id === id);
   if (!A) return go('#/history');
@@ -585,10 +624,11 @@ function viewResult(id) {
       <div class="ring ${g.cls}" style="--p:${r.pct}"><div><div><b>${fmt(r.got)}</b><br><span class="muted">/ ${r.total}</span></div></div></div>
       <div style="flex:1;min-width:260px"><h2 style="margin-bottom:4px">${fmt(r.pct)}% — ${g.label}</h2>
         <span class="chip ${passed ? 'ok' : 'bad'}">${passed ? 'PASS' : 'BELOW PASS MARK'} (pass ${BOARD.passPercent}%)</span>
-        ${r.selfPending ? `<p class="small" style="margin-top:10px"><b>${r.selfPending}</b> written answer(s) still need your marks — scroll to the review and award yourself marks against the model answer. Score updates live.</p>` : ''}
+        ${r.selfAuto ? `<p class="small" style="margin-top:10px">✅ <b>${r.selfAuto}</b> written answer(s) were checked automatically against the model answer. Disagree with one? Change its marks in the review below — your marks always win.</p>` : ''}
+        ${r.selfPending ? `<p class="small" style="margin-top:10px"><b>${r.selfPending}</b> written answer(s) cannot be checked automatically (drawings, proofs, long explanations) — scroll to the review and award yourself marks against the model answer. Score updates live.</p>` : ''}
         <p class="small muted">Time taken: ${dur(r.secsTaken)} of ${dur(A.endsAt - A.startedAt === 0 ? 0 : (A.endsAt - A.startedAt) / 1000)}${sk.cur ? ` · <b>🔥 ${sk.cur}-day streak</b>` : ''}</p></div>
       <div class="kpis"><div class="kpi"><b style="color:var(--ok)">${r.correct}</b>auto-marked correct</div><div class="kpi"><b style="color:var(--bad)">${r.wrong}</b>incorrect</div>
-        <div class="kpi"><b>${r.skip}</b>not attempted</div><div class="kpi"><b style="color:var(--warn)">${r.selfDone + r.selfPending}</b>self-marked (${r.selfDone} done)</div></div>
+        <div class="kpi"><b>${r.skip}</b>not attempted</div><div class="kpi"><b style="color:var(--warn)">${r.selfDone + r.selfPending}</b>written${r.selfPending ? ` (${r.selfPending} to mark)` : ' — all marked'}</div></div>
     </div></div>
     ${timePanel(A, r)}
     <div class="grid g2" style="margin-top:16px">
@@ -597,7 +637,7 @@ function viewResult(id) {
     </div>
     <div style="margin:16px 0;display:flex;gap:8px;flex-wrap:wrap"><a class="btn pri" href="#/report/${A.id}">🖨 Report card (print / PDF)</a><button class="btn" data-go="#/paper/${encodeURIComponent(P.id)}">Retake</button><button class="btn" data-go="#/progress">My progress</button><button class="btn" data-go="#/history">All my results</button></div>
     <div class="rvhead"><h2 style="margin:0">Answer review &amp; worked solutions</h2><button class="btn sm noprint" id="printrev">🖨 Print review with solutions</button></div>
-    <div class="filters">${[['all', 'All'], ['wrong', 'Incorrect'], ['skip', 'Not attempted'], ['self', 'Written (self-mark)'], ['correct', 'Correct']].map(f => `<button class="btn sm ${filter === f[0] ? 'pri' : ''}" data-f="${f[0]}">${f[1]}</button>`).join('')}</div>`;
+    <div class="filters">${[['all', 'All'], ['wrong', 'Incorrect'], ['skip', 'Not attempted'], ['self', 'Written answers'], ['correct', 'Correct']].map(f => `<button class="btn sm ${filter === f[0] ? 'pri' : ''}" data-f="${f[0]}">${f[1]}</button>`).join('')}</div>`;
     document.querySelectorAll('#sum [data-go]').forEach(b => b.onclick = () => go(b.dataset.go));
     document.getElementById('printrev').onclick = () => window.print();
     document.querySelectorAll('[data-f]').forEach(b => b.onclick = () => { filter = b.dataset.f; summary(); review(); });
@@ -610,21 +650,25 @@ function viewResult(id) {
   function review() {
     const r = evaluate(A);
     const rows = r.rows.map((x, i) => Object.assign({ n: i + 1 }, x)).filter(x => filter === 'all' || (x.st === filter && (x.counted || x.st !== 'skip')));
-    document.getElementById('rev').innerHTML = rows.length ? rows.map(({ q, st, got, counted, n, t, chg }) => {
+    document.getElementById('rev').innerHTML = rows.length ? rows.map(({ q, st, got, counted, n, t, chg, src: msrc, auto }) => {
       const v = A.answers[q.id];
       let body = '';
       if (q.type === 'mcq') body = q.options.map((o, i) => `<div class="optr ${i === q.answer ? 'right' : ''} ${isAns(v) && mcqIdx(v) === i ? 'mine ' + (i === q.answer ? '' : 'wrong') : ''}"><b>${letter(i)}.</b> ${o} ${i === q.answer ? '✔ correct' : ''}${isAns(v) && mcqIdx(v) === i && i !== q.answer ? ' ✘ your answer' : ''}</div>`).join('');
       else if (q.type === 'num') body = `<div class="your"><b>Your answer:</b> ${ansDisplay(q, v)}</div><div><b>Correct answer:</b> ${esc(q.accept[0])}</div>`;
       else body = `<div class="your"><b>Your answer:</b>\n${ansDisplay(q, v)}</div>`;
-      const mark = q.type === 'self' && isAns(v) ? `<div class="selfmark"><b>Award yourself marks:</b>
-        <select data-q="${esc(q.id)}"><option value="">— choose —</option>${Array.from({ length: q.marks * 2 + 1 }, (_, i) => i / 2).map(m => `<option value="${m}" ${A.self && A.self[q.id] === m ? 'selected' : ''}>${m} / ${q.marks}</option>`).join('')}</select>
-        <span class="small muted">Compare with the model answer below.</span></div>` : '';
+      const manual = A.self && A.self[q.id] != null;
+      const why = !auto ? '' : auto.kind === 'answer' ? `Matched ${fmt(auto.hit)} of ${auto.pts} final answer${auto.pts > 1 ? 's' : ''} in the model answer.` : `Covers ${fmt(auto.hit)} of ${auto.pts} key points of the model answer.`;
+      const mark = q.type === 'self' && isAns(v) ? `<div class="selfmark ${msrc || 'pending'}"><b>${auto && !manual ? 'Auto-checked' : manual ? 'Your marks' : 'Award yourself marks'}:</b>
+        <select data-q="${esc(q.id)}"><option value="">${auto ? `Auto: ${fmt(auto.marks)} / ${q.marks}` : '— choose —'}</option>${Array.from({ length: q.marks * 2 + 1 }, (_, i) => i / 2).map(m => `<option value="${m}" ${manual && A.self[q.id] === m ? 'selected' : ''}>${m} / ${q.marks}</option>`).join('')}</select>
+        <span class="small muted">${manual ? (auto ? 'You changed the marks — pick “Auto” to go back.' : 'Compare with the model answer below.') : auto ? esc(why) + ' Not right? Change it.' : 'This one cannot be auto-checked — compare with the model answer below.'}</span></div>` : '';
       const src = q.year ? `<span class="chip ok">Asked in Board ${esc(q.year)}</span>` : '';
-      const extra = !counted ? (st === 'skip' ? '<span class="chip gray">Optional — not needed</span>' : '<span class="chip gray">Extra answer — not counted</span>') : '';
+      const extra = !counted ? (st === 'skip' ? '<span class="chip gray" title="This section only asks for some of its questions, and you answered enough others">Optional — you did not need this one</span>' : '<span class="chip gray">Extra answer — not counted</span>') : '';
+      const stLabel = st === 'self' ? (msrc === 'auto' ? 'Auto-checked' : msrc === 'manual' ? 'Self-marked' : 'Needs your marks') : st === 'skip' ? (counted ? 'Not attempted' : 'Skipped') : st;
+      const stCls = st === 'correct' ? 'ok' : st === 'wrong' ? 'bad' : st === 'self' && msrc ? (got >= q.marks ? 'ok' : got > 0 ? 'warn' : 'bad') : 'gray';
       return `<div class="card rev ${st} ${counted ? '' : 'extra'}"><div class="qhead"><div><span class="chip">Q${n}</span> <span class="chip gray">${esc(q.sec.title)}</span> <span class="chip gray">${esc(q.chapter || '')}</span> ${src}${r.tracked ? ` <span class="chip gray" title="Time you spent on this question">⏱ ${dur(t)}</span>` : ''}${chg ? ` <span class="chip gray" title="Times you changed your answer">changed ${chg}×</span>` : ''}</div>
-        <div>${extra} <span class="chip ${st === 'correct' ? 'ok' : st === 'wrong' ? 'bad' : 'gray'}">${st === 'self' ? 'Self-marked' : st === 'skip' ? 'Not attempted' : st}</span> <b>${counted ? fmt(got) : '–'} / ${q.marks}</b></div></div>
+        <div>${extra} <span class="chip ${stCls}">${stLabel}</span> <b>${counted ? fmt(got) : '–'} / ${q.marks}</b></div></div>
         <div class="qtext">${q.q}</div>${body}${mark}
-        <div class="sol"><b>${q.type === 'self' ? 'Model answer / marking points' : 'Solution'}:</b><div>${q.solution || ''}</div></div></div>`;
+        <div class="sol"><b>${q.type === 'self' ? 'Model answer, step by step' : 'Solution'}:</b>${solHtml(q)}</div></div>`;
     }).join('') : '<div class="empty">Nothing in this filter.</div>';
     document.querySelectorAll('[data-q]').forEach(sel => sel.onchange = () => {
       A.self = A.self || {};
@@ -643,7 +687,7 @@ function viewHistory() {
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><a class="btn" href="#/progress">📈 Progress</a><button class="btn" id="csv">⬇ Export CSV</button></div>
     <div class="card"><div class="tscroll"><table><tr><th>Date</th><th>Paper</th><th>Score</th><th>Grade</th><th></th></tr>
     ${arr.map(a => { const P = paperById(a.paperId); const r = evaluate(a), g = gradeOf(r.pct);
-      return `<tr><td class="nowrap">${new Date(a.submittedAt).toLocaleString()}</td><td>${esc(P.title)}<div class="small muted">${esc(modeLabel(P, a.mode))}</div></td><td class="nowrap">${fmt(r.got)} / ${r.total} (${fmt(r.pct)}%)</td><td>${g.label}${r.selfPending ? ' <span class="chip warn">self-marking pending</span>' : ''}</td>
+      return `<tr><td class="nowrap">${new Date(a.submittedAt).toLocaleString()}</td><td>${esc(P.title)}<div class="small muted">${esc(modeLabel(P, a.mode))}</div></td><td class="nowrap">${fmt(r.got)} / ${r.total} (${fmt(r.pct)}%)</td><td>${g.label}${r.selfPending ? ' <span class="chip warn">needs your marks</span>' : ''}</td>
       <td class="right nowrap"><a class="btn sm" href="#/result/${a.id}">View</a> <a class="btn sm" href="#/report/${a.id}">Report</a> <button class="btn sm danger" data-del="${a.id}">Delete</button></td></tr>`; }).join('')}</table></div></div>`
     : '<div class="card empty">You have not taken any test yet.<br><br><a class="btn pri" href="#/">Pick a subject</a></div>');
   const csv = document.getElementById('csv'); if (csv) csv.onclick = exportCSV;
@@ -840,7 +884,7 @@ function viewReport(id) {
     <tr><td><b>Date</b></td><td>${dateStr(A.submittedAt)}</td><td><b>Time taken</b></td><td>${dur(r.secsTaken)} of ${dur((A.endsAt - A.startedAt) / 1000)}</td><td><b>Pass mark</b></td><td>${BOARD.passPercent}%</td></tr></table>
     <div class="rscore"><div class="rbig"><b>${fmt(r.got)}</b> / ${r.total}</div><div class="rbig2">${fmt(r.pct)}%</div>
       <div><span class="chip ${g.min >= 45 ? 'ok' : g.min >= 35 ? 'warn' : 'bad'}" style="font-size:1rem">${g.label}</span> <span class="chip ${passed ? 'ok' : 'bad'}" style="font-size:1rem">${passed ? 'PASS' : 'BELOW PASS MARK'}</span></div></div>
-    ${r.selfPending ? `<p class="small"><b>Note:</b> ${r.selfPending} written answer(s) were not self-marked yet, so they count as 0.</p>` : ''}
+    ${r.selfPending ? `<p class="small"><b>Note:</b> ${r.selfPending} written answer(s) could not be auto-checked and were not marked yet, so they count as 0.</p>` : ''}
     <h3>Section-wise marks</h3><table class="rtab"><tr><th>Section</th><th>Marks</th><th>%</th><th style="width:30%">Performance</th></tr>${Object.entries(r.secs).map(([k, v]) => `<tr><td>${esc(k)}</td><td class="nowrap">${fmt(v.got)} / ${v.tot}</td><td>${fmt(v.tot ? v.got / v.tot * 100 : 0)}</td><td>${bar(v.got, v.tot)}</td></tr>`).join('')}
       <tr><td><b>Total</b></td><td><b>${fmt(r.got)} / ${r.total}</b></td><td><b>${fmt(r.pct)}</b></td><td></td></tr></table>
     <h3>Chapter-wise marks</h3><table class="rtab"><tr><th>Chapter</th><th>Marks</th><th>%</th><th style="width:30%">Performance</th></tr>${chaps.map(([k, v]) => `<tr><td>${esc(k)}</td><td class="nowrap">${fmt(v.got)} / ${v.tot}</td><td>${fmt(v.tot ? v.got / v.tot * 100 : 0)}</td><td>${bar(v.got, v.tot)}</td></tr>`).join('')}</table>

@@ -42,7 +42,7 @@ The site is plain static files, so any static host works. Recommended: **Vercel*
 
 * **Timed tests** in the real paper layout — Q.1(A), Q.1(B), Q.2 … with "attempt any N of M" choices, scaled timer (3 min/mark).
 * **Full paper, one part, or one section** — e.g. Maths: both parts (4 h) or Algebra only (2 h).
-* **Marking**: MCQ and short answers are auto-marked; written answers are self-marked against the model answer (0 to max, steps of 0.5). Only the best N answers of an "any N" group count.
+* **Marking**: MCQ and short answers are auto-marked (typed answers tolerate `x = 3`, `Rs. 1,150`, `(2, 1)`, `3 cm`). Written answers are auto-checked against the model answer (`js/check.js`: bold final answers are matched as numbers / equations / words, otherwise key-point coverage; marks in 0.5 steps) and the student can override any of them. Drawings, constructions, graphs and proofs cannot be checked by a computer, so those stay self-marked. Model answers are shown step by step (givens, numbered calculation lines, marks per step, highlighted result). Only the best N answers of an "any N" group count.
 * **Scores & grades**: Distinction ≥ 75 %, First Class ≥ 60 %, Second Class ≥ 45 %, Pass Class ≥ 35 % (`BOARD.passPercent`).
 * **Progress dashboard**: score trend, per-subject averages, weak chapters, history of every attempt.
 * **Streaks and activity heatmap**: current and longest day streak, a GitHub-style 52-week heatmap of tests per day, last-14-day test time.
@@ -97,7 +97,7 @@ The site is plain static files, so any static host works. Recommended: **Vercel*
 ### How Maths mocks 2–10 are made
 
 `js/data/lib.js` (helpers), `mm-alg.js` / `mm-geo.js` (question templates by chapter) and `mm-build.js` (assembly). Every question is built from a parameter table, and its answer, MCQ options and worked solution are computed from the same numbers, so they cannot disagree. Each paper follows the Q1–Q5 layout above for Algebra (Part 1) and Geometry (Part 2); templates rotate so mocks differ in topics and numbers. Validate with a Node script that loads the data files (marks per part, duplicate ids/texts, MCQ options).
-Limits: the templates cover Balbharati chapter topics but similar *types* repeat across mocks (different numbers); figure-based board questions are described in words; construction and proof questions are self-marked against the steps.
+Limits: the templates cover Balbharati chapter topics but similar *types* repeat across mocks (different numbers); figure-based board questions are described in words; construction and proof questions are self-marked against the steps (everything else is auto-checked).
 
 ## Paper layout (`window.SUBJECTS` in `js/data/config.js`)
 

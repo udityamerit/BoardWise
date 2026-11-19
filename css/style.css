@@ -279,3 +279,22 @@ body.testing .userbox{display:none}
   .rtab{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}
   .rtab th,.rtab td{padding:6px 8px}
 }
+
+/* ---- step-by-step model answers + auto-checked marks ---- */
+.rev .sol>b{display:block;margin-bottom:8px}
+.solraw{line-height:1.6}
+.steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.steps li{display:flex;align-items:flex-start;gap:10px;padding:8px 10px;background:#fff;border:1px solid var(--line);border-radius:10px}
+.steps .sn{flex:0 0 auto;min-width:26px;height:26px;padding:0 6px;border-radius:99px;background:#e9ecf6;color:#44506f;font:700 .78rem/26px inherit;text-align:center}
+.steps .sb{flex:1 1 auto;min-width:0;line-height:1.55;overflow-wrap:anywhere}
+.steps .mk{flex:0 0 auto;align-self:center;max-width:42%;font-size:.74rem;font-weight:700;color:var(--ok);background:var(--ok-l);border-radius:99px;padding:3px 9px;text-align:center}
+.steps li.given{background:#f3f6ff;border-color:#d5def7}
+.steps li.given .sn{background:#dbe4ff;color:#2b4aa8;border-radius:8px;font-size:.72rem;text-transform:uppercase;letter-spacing:.03em}
+.steps .gv{display:inline-block;margin:2px 6px 2px 0;padding:3px 10px;border-radius:8px;background:#fff;border:1px solid #cfd9f5;font-weight:600;white-space:nowrap}
+.steps li.fin{background:var(--ok-l);border-color:#8fd5b9}
+.steps li.fin .sn{background:var(--ok);color:#fff}
+.steps li.fin .sb b{background:#fff;border-radius:6px;padding:1px 6px;border:1px solid #8fd5b9}
+.selfmark.auto{background:var(--ok-l)}.selfmark.auto select{border-color:#8fd5b9}
+.selfmark.manual{background:#eef2ff}
+@media(max-width:600px){.steps li{padding:8px}.steps .mk{max-width:34%;font-size:.7rem}.steps .gv{white-space:normal}}
+@media print{.steps li{break-inside:avoid}.steps li.fin,.steps li.given,.steps .mk,.steps .sn{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
