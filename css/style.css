@@ -308,3 +308,45 @@ body.testing .userbox{display:none}
 .aisteps{margin-top:6px}.aisteps ol{margin:4px 0 2px 1.2em;padding:0}.aisteps li{margin:3px 0}
 .aitip{margin-top:6px;font-size:.88rem;color:#4b3a99}
 @media print{.aibar .spin{display:none}}
+
+/* ---- responsive charts + shared tooltip ---- */
+.tchart{width:100%;min-width:0}
+.tchart svg.trend{width:100%;height:auto;display:block;overflow:visible}
+.tchart .pt{cursor:pointer;outline:none}
+.tchart .pt .dot{fill:#fff;stroke:#3b4fd8;stroke-width:2.2;transition:r .12s,fill .12s}
+.tchart .pt:hover .dot,.tchart .pt:focus .dot{r:7;fill:#3b4fd8}
+.spark{display:block;cursor:pointer;max-width:100%}
+.spark:focus{outline:2px solid var(--brand);outline-offset:2px;border-radius:4px}
+[data-tip]{cursor:pointer}
+.hc[data-tip]:hover{outline:2px solid #1b2140;outline-offset:1px}
+.tb{cursor:pointer;outline:none}.tb:hover i,.tb:focus i{filter:brightness(.82)}
+.d14c:hover i,.d14c:focus i{filter:brightness(.85)}.d14c{outline:none}
+.tstrip{gap:3px}.tb{flex:1 0 7px;max-width:22px}
+#tip{position:fixed;z-index:300;left:0;top:0;pointer-events:none;opacity:0;transform:translateY(3px);transition:opacity .12s,transform .12s;background:#1b2140;color:#fff;font-size:.82rem;line-height:1.35;padding:7px 10px;border-radius:8px;max-width:240px;white-space:pre-line;box-shadow:0 6px 20px rgba(15,20,40,.28)}
+#tip.on{opacity:1;transform:none}
+@media print{#tip{display:none}.tchart svg.trend{max-width:100%}}
+
+/* ---- question-set choice (original / shuffled / fresh mix) ---- */
+.qsets{display:grid;gap:8px;margin:6px 0 14px}
+.qset{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:12px;padding:10px 12px;cursor:pointer;background:#fff}
+.qset input{margin-top:4px;accent-color:var(--brand)}
+.qset:has(input:checked){border-color:var(--brand);background:var(--brand-l)}
+.qset.off{opacity:.55;cursor:not-allowed}
+
+/* ---------- figures drawn from the question (js/figures.js) ---------- */
+.fig{margin:12px 0;text-align:center}
+.fig svg{width:100%;height:auto;display:block;margin:0 auto;background:#fafbff;border:1px solid var(--line);border-radius:12px}
+.fig figcaption{font-size:.78rem;color:var(--muted);margin-top:5px}
+.fig .fs{fill:none;stroke:#1c2033;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.fig .fs.ff{fill:#eaeefc}.fig .fs.lens{fill:#dbe6ff}.fig .fs.sec{fill:#c9d2fb}
+.fig .fs.dash{stroke-dasharray:5 4}.fig .fs.thin{stroke-width:1.1}.fig .fs.thick{stroke-width:2.6}
+.fig .fs.acc{stroke:#3b4fd8}.fig .fs.red{stroke:#e5484d}.fig .fs.ray{stroke:#d97706}
+.fig .fs.grid{stroke:#e3e6ef;stroke-width:1}.fig .fs.ax{stroke:#6b7280;stroke-width:1.4}
+.fig .fd{fill:#1c2033}.fig .fd.acc{fill:#3b4fd8}
+.fig .ft{font:600 13px "Segoe UI",system-ui,sans-serif;fill:#1c2033;paint-order:stroke;stroke:#f7f8fd;stroke-width:3px;stroke-linejoin:round}
+.fig .ft.w{stroke:none}
+.fig .ft.b{font-weight:800;font-size:14px}.fig .ft.sm{font-size:12px}.fig .ft.tick{font-size:10.5px;font-weight:500;fill:#6b7280}
+.fig .ft.acc{fill:#3b4fd8}.fig .ft.q{fill:#e5484d;font-weight:800}.fig .ft.red{fill:#e5484d}.fig .ft.w{fill:#fff}
+.fig .fb:hover .fs,.fig .fb:focus .fs{fill:#c9d2fb;outline:none}
+.fig table.fig-t{margin:6px auto}
+@media print{.fig svg{background:#fff}}

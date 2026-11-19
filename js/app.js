@@ -102,7 +102,7 @@ function status(q, A) {
   return 'self';
 }
 function evaluate(A) {
-  const P = paperById(A.paperId), all = flat(P), qs = A.qids.map(id => all.find(q => q.id === id));
+  const P = paperById(A.paperId), qs = qsOf(A);
   const r = { total: marksOf(qs), got: 0, correct: 0, wrong: 0, skip: 0, selfDone: 0, selfAuto: 0, selfAi: 0, selfPending: 0, secs: {}, chaps: {}, rows: [], tsecs: {}, tracked: !!(A.tq && Object.keys(A.tq).length), changes: 0 };
   const tq = A.tq || {};
   const info = {};
@@ -148,6 +148,99 @@ function evaluate(A) {
   r.secsTaken = elapsed(A);
   return r;
 }
+
+/* the diagram a question needs (js/figures.js); only drawn when the question text matches a known pattern */
+const figHtml = (q, solved) => { try { return window.FIG ? window.FIG.forQuestion(q, solved) : ''; } catch (e) { return ''; } };
+
+/* ---------- retake variants ----------
+   A student who retakes a mock should be tested on the subject, not on remembering last time's answer key.
+     orig     the paper exactly as written
+     shuffle  same questions, new order inside each section, and the options of every MCQ re-ordered
+     fresh    as shuffle, but each question is swapped for an unseen question of the same section, type and marks from
+              another mock of the same subject (same chapter first). Sections built on a passage are never swapped.
+   An attempt stores what it needs to rebuild itself: A.qids (in test order; a question from another paper is
+   "<paperId>::<id>"), A.slots (which section of this paper such a question fills) and A.opt ({id: [original index of
+   each shown option]}). qsOf(A) turns that back into questions with options and the right answer already re-ordered,
+   so marking, the review and the AI examiner need no special cases. */
+const FSEP = '::';
+const UNSAFE_OPT = /\b(above|below|both|neither|none|all of|any of|all the|either|statements?|assertion|reason)\b|\(\s*(?:[a-d]|i{1,3}|iv|[1-4])\s*\)|\b[a-d]\s*(?:and|&)\s*[a-d]\b|^\s*(?:only\s+)?(?:i{1,3}|iv)\s*(?:,|and\b|&|only\b|$)/i;
+const UNSAFE_Q = /\bstatements?\b|\bassertion\b|\(\s*(?:i{1,3}|iv)\s*\)|\bi\s*,\s*ii\b|\bpairs?\b.*\bmatch|\bmatch\b.*\b(column|following)/i;
+const shuffleArr = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const tkey = q => String(q.q).replace(/\s+/g, ' ').trim().toLowerCase();
+const canon = (A, id) => id.includes(FSEP) ? id : A.paperId + FSEP + id;
+function optPerm(q) {
+  if (q.type !== 'mcq' || !Array.isArray(q.options) || q.options.length < 2 || UNSAFE_Q.test(q.q) || q.options.some(o => UNSAFE_OPT.test(String(o)))) return null;
+  if (new Set(q.options.map(o => String(o).trim().toLowerCase())).size < q.options.length) return null;
+  const idx = q.options.map((_, i) => i); let p = idx;
+  for (let t = 0; t < 10 && p.every((v, i) => v === i); t++) p = shuffleArr(idx.slice());
+  return p;
+}
+/* the questions of an attempt, in test order, ready to show and mark (null where a question no longer exists) */
+function qsOf(A) {
+  const P = paperById(A.paperId); if (!P) return [];
+  const all = flat(P);
+  return A.qids.map((id, i) => {
+    let q;
+    if (id.includes(FSEP)) {
+      const k = id.indexOf(FSEP), FP = paperById(id.slice(0, k)), fq = FP && flat(FP).find(x => x.id === id.slice(k + 2));
+      const sec = P.sections.find(s => s.id === (A.slots && A.slots[id]));
+      if (!fq || !sec) return null;
+      q = Object.assign({}, fq, { id, sec, idx: i, part: sec.part != null ? sec.part : null, foreign: { paperId: FP.id, title: FP.title, id: fq.id } });
+    } else q = all.find(x => x.id === id);
+    if (!q) return null;
+    const perm = A.opt && A.opt[id];
+    if (perm && q.options && perm.length === q.options.length && perm.every(k => k >= 0 && k < q.options.length))
+      q = Object.assign({}, q, { options: perm.map(k => q.options[k]), answer: perm.indexOf(q.answer) });
+    return q;
+  });
+}
+/* questions of other mocks that could stand in for q (same subject, kind, section, type, marks) */
+function freshPool(P, q) {
+  const out = [];
+  PAPERS.forEach(O => {
+    if (O.id === P.id || O.subject !== P.subject || O.kind !== P.kind || O.board !== P.board || O.level !== P.level) return;
+    O.sections.forEach(os => {
+      if (os.id !== q.sec.id || os.part !== q.sec.part || os.title !== q.sec.title || os.instruction !== q.sec.instruction || os.passage) return;
+      flat(O).forEach(f => { if (f.sec === os && f.type === q.type && f.marks === q.marks) out.push({ pid: O.id, q: f }); });
+    });
+  });
+  return out;
+}
+function seenIds(subject) {
+  const s = new Set();
+  rawAttempts().forEach(a => { const P = paperById(a.paperId); if (P && P.subject === subject) a.qids.forEach(id => s.add(canon(a, id))); });
+  return s;
+}
+function makeVariant(P, mode, kind) {
+  const base = pick(P, mode);
+  if (kind === 'orig') return { qids: base.map(q => q.id) };
+  const opt = {}, slots = {}, qids = [], seen = kind === 'fresh' ? seenIds(P.subject) : null, used = new Set(base.map(tkey));
+  let swapped = 0;
+  groupBySec(base).forEach(g => {
+    let items = g.qs.map(q => ({ id: q.id, q }));
+    if (kind === 'fresh' && !g.sec.passage) items = items.map(it => {
+      const cands = freshPool(P, it.q).filter(c => !used.has(tkey(c.q)));
+      if (!cands.length) return it;
+      const score = c => (seen.has(c.pid + FSEP + c.q.id) ? 2 : 0) + (c.q.chapter === it.q.chapter ? 0 : 1);
+      const best = Math.min(...cands.map(score)), c = shuffleArr(cands.filter(x => score(x) === best))[0];
+      used.add(tkey(c.q)); swapped++;
+      const id = c.pid + FSEP + c.q.id; slots[id] = g.sec.id;
+      return { id, q: c.q };
+    });
+    if (!g.sec.passage) shuffleArr(items);
+    items.forEach(it => { const p = optPerm(it.q); if (p) opt[it.id] = p; qids.push(it.id); });
+  });
+  return { qids, opt, slots, variant: { kind: kind === 'fresh' && swapped ? 'fresh' : 'shuffle', swapped } };
+}
+const freshCount = (P, mode) => pick(P, mode).filter(q => !q.sec.passage && freshPool(P, q).length).length;
+const variantLabel = A => !A.variant ? '' : A.variant.kind === 'fresh' ? `Fresh mix · ${A.variant.swapped} new question${A.variant.swapped > 1 ? 's' : ''}` : 'Shuffled';
+function startAttempt(P, mode, kind) {
+  if (active() && !confirm('A test is already in progress. Starting a new one will discard it. Continue?')) return;
+  const qs = pick(P, mode);
+  saveActive(Object.assign({ id: 'a' + Date.now(), paperId: P.id, mode, startedAt: Date.now(), endsAt: Date.now() + minutesFor(P, qs) * 60000, answers: {}, flags: {}, seen: {}, cur: 0, self: {} }, makeVariant(P, mode, kind)));
+  go('#/test');
+}
+
 const barCls = p => p >= 70 ? 'hi' : p >= 40 ? 'mid' : 'low';
 const bar = (g, t) => { const p = t ? g / t * 100 : 0; return `<div class="bar ${barCls(p)}"><i style="width:${p}%"></i></div>`; };
 
@@ -165,26 +258,74 @@ let nextHash = '', ready = false;
 const AUTH_RX = /^#\/(login|register|forgot)/;
 function valid(A) {
   const P = A && paperById(A.paperId); if (!P) return false;
-  const all = flat(P); return A.qids.every(id => all.some(q => q.id === id));
+  return qsOf(A).every(Boolean);
 }
 const attempts = () => rawAttempts().filter(valid);
 
 /* ---------- small charts ---------- */
+/* Charts are drawn at the width they actually have (so text stays readable on a phone) and every mark carries a
+   data-tip that the shared tooltip below shows on hover (mouse), tap (touch) or keyboard focus. */
 function trendSvg(vals, w, h) {
-  const L = 32, R = 10, T = 10, B = 18, iw = w - L - R, ih = h - T - B;
-  const x = i => L + (vals.length < 2 ? iw / 2 : i * iw / (vals.length - 1));
-  const y = v => T + ih * (1 - v / 100);
-  const grid = [0, 35, 60, 75, 100].map(v => `<line x1="${L}" x2="${w - R}" y1="${y(v)}" y2="${y(v)}" stroke="${v === 35 ? '#e5484d' : '#e3e6ef'}" ${v === 35 ? 'stroke-dasharray="4 3"' : ''}/><text x="${L - 5}" y="${y(v) + 4}" font-size="10" text-anchor="end" fill="#6b7280">${v}</text>`).join('');
-  const pts = vals.map((v, i) => `${x(i)},${y(v)}`).join(' ');
-  return `<svg viewBox="0 0 ${w} ${h}" class="trend" role="img" aria-label="Score trend, percent per test">${grid}
-    <polyline points="${pts}" fill="none" stroke="#3b4fd8" stroke-width="2.5" stroke-linejoin="round"/>
-    ${vals.map((v, i) => `<circle cx="${x(i)}" cy="${y(v)}" r="4" fill="#fff" stroke="#3b4fd8" stroke-width="2"><title>Test ${i + 1}: ${fmt(v)}%</title></circle>`).join('')}
-    <text x="${L}" y="${h - 3}" font-size="10" fill="#6b7280">oldest</text><text x="${w - R}" y="${h - 3}" font-size="10" text-anchor="end" fill="#6b7280">latest</text></svg>`;
+  const d = vals.map(x => typeof x === 'number' ? { v: x } : x);
+  return `<div class="tchart" data-h="${h}" data-d="${esc(JSON.stringify(d))}" style="min-height:${h}px"></div>`;
 }
+function drawTrend(el) {
+  let d; try { d = JSON.parse(el.dataset.d); } catch (e) { return; }
+  const w = Math.max(220, Math.round(el.clientWidth || 320)), h = w < 420 ? Math.max(+el.dataset.h, 190) : +el.dataset.h;
+  const L = 40, R = 12, T = 12, B = 26, iw = w - L - R, ih = h - T - B, n = d.length;
+  const x = i => L + (n < 2 ? iw / 2 : i * iw / (n - 1)), y = v => T + ih * (1 - v / 100);
+  const pass = BOARD.passPercent;
+  const grid = [0, 25, 50, 75, 100].map(v => `<line x1="${L}" x2="${w - R}" y1="${y(v)}" y2="${y(v)}" stroke="#e3e6ef"/><text x="${L - 6}" y="${y(v) + 4}" font-size="11" text-anchor="end" fill="#6b7280">${v}%</text>`).join('')
+    + `<line x1="${L}" x2="${w - R}" y1="${y(pass)}" y2="${y(pass)}" stroke="#e5484d" stroke-dasharray="5 4"/><text x="${w - R}" y="${y(pass) - 4}" font-size="10.5" text-anchor="end" fill="#e5484d">pass ${pass}%</text>`;
+  const step = Math.max(1, Math.ceil(n / Math.max(2, Math.floor(iw / 34))));
+  const xl = d.map((_, i) => (i % step === 0 || i === n - 1) ? `<text x="${x(i)}" y="${h - 8}" font-size="11" text-anchor="middle" fill="#6b7280">${i + 1}</text>` : '').join('');
+  const pts = d.map((o, i) => `${x(i)},${y(o.v)}`).join(' ');
+  const area = n > 1 ? `<polygon points="${x(0)},${y(0)} ${pts} ${x(n - 1)},${y(0)}" fill="#3b4fd8" opacity=".07"/>` : '';
+  const dots = d.map((o, i) => {
+    const tip = (o.t || 'Test ' + (i + 1)) + '\n' + fmt(o.v) + '%' + (o.d ? ' · ' + dateStr(o.d) : '');
+    return `<g class="pt" tabindex="0" data-tip="${esc(tip)}"><circle class="hit" cx="${x(i)}" cy="${y(o.v)}" r="15" fill="transparent"/><circle class="dot" cx="${x(i)}" cy="${y(o.v)}" r="4.5"/></g>`;
+  }).join('');
+  el.innerHTML = `<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" class="trend" role="img" aria-label="Score trend, percent per test, ${n} tests">${grid}${area}
+    <polyline points="${pts}" fill="none" stroke="#3b4fd8" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>${dots}${xl}</svg>
+    <div class="small muted" style="text-align:center">Test number, oldest → latest · hover or tap a dot for details</div>`;
+  el.style.minHeight = '';
+}
+function mountCharts() {
+  document.querySelectorAll('.tchart').forEach(el => {
+    if (el.dataset.w != el.clientWidth) { el.dataset.w = el.clientWidth; drawTrend(el); }
+    if (!el._ro && window.ResizeObserver) { el._ro = new ResizeObserver(() => { if (Math.abs(el.clientWidth - (+el.dataset.w || 0)) > 3) { el.dataset.w = el.clientWidth; drawTrend(el); } }); el._ro.observe(el); }
+  });
+}
+let mcRaf = 0;
+new MutationObserver(() => { clearTimeout(mcRaf); mcRaf = setTimeout(mountCharts, 20); }).observe(app, { childList: true, subtree: true });
+window.addEventListener('beforeprint', mountCharts);
 function spark(vals) {
   const w = 90, h = 28, x = i => 3 + (vals.length < 2 ? (w - 6) / 2 : i * (w - 6) / (vals.length - 1)), y = v => 3 + (h - 6) * (1 - v / 100);
-  return `<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" aria-hidden="true"><polyline points="${vals.map((v, i) => x(i) + ',' + y(v)).join(' ')}" fill="none" stroke="#3b4fd8" stroke-width="2"/>${vals.length ? `<circle cx="${x(vals.length - 1)}" cy="${y(vals[vals.length - 1])}" r="3" fill="#3b4fd8"/>` : ''}</svg>`;
+  const tip = vals.length + ' test' + (vals.length === 1 ? '' : 's') + ' (oldest → latest)\n' + vals.slice(-8).map(v => fmt(v) + '%').join('  ›  ');
+  return `<svg class="spark" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img" aria-label="${esc(tip.replace('\n', ': '))}" tabindex="0" data-tip="${esc(tip)}"><polyline points="${vals.map((v, i) => x(i) + ',' + y(v)).join(' ')}" fill="none" stroke="#3b4fd8" stroke-width="2"/>${vals.length ? `<circle cx="${x(vals.length - 1)}" cy="${y(vals[vals.length - 1])}" r="3" fill="#3b4fd8"/>` : ''}</svg>`;
 }
+
+/* shared tooltip: hover on a mouse, tap on a phone, focus on a keyboard */
+(function () {
+  const tip = document.createElement('div'); tip.id = 'tip'; tip.setAttribute('role', 'tooltip'); document.body.appendChild(tip);
+  let timer = 0, cur = null;
+  const hide = () => { clearTimeout(timer); cur = null; tip.classList.remove('on'); };
+  function show(t, auto) {
+    clearTimeout(timer); cur = t; tip.textContent = t.getAttribute('data-tip'); tip.classList.add('on');
+    const r = t.getBoundingClientRect(), tw = tip.offsetWidth, th = tip.offsetHeight, vw = document.documentElement.clientWidth;
+    const left = Math.min(Math.max(8, r.left + r.width / 2 - tw / 2), vw - tw - 8); let top = r.top - th - 8;
+    if (top < 6) top = r.bottom + 8;
+    tip.style.left = left + 'px'; tip.style.top = top + 'px';
+    if (auto) timer = setTimeout(hide, 3500);
+  }
+  const tgt = e => e.target && e.target.closest ? e.target.closest('[data-tip]') : null;
+  document.addEventListener('pointerover', e => { if (e.pointerType !== 'mouse') return; const t = tgt(e); if (t) show(t); });
+  document.addEventListener('pointerout', e => { if (e.pointerType === 'mouse' && tgt(e)) hide(); });
+  document.addEventListener('focusin', e => { const t = tgt(e); if (t) show(t); });
+  document.addEventListener('focusout', hide);
+  document.addEventListener('click', e => { const t = tgt(e); if (t && t !== cur) show(t, true); else hide(); });
+  document.addEventListener('scroll', hide, true); window.addEventListener('hashchange', hide);
+})();
 
 /* ---------- router ---------- */
 function route(keepScroll) {
@@ -389,6 +530,7 @@ function viewInstr(id) {
   const modes = [['all', 'Full paper', all]];
   if (hasParts(P)) { modes.push(['part1', 'Part 1 only', pick(P, 'part1')], ['part2', 'Part 2 only', pick(P, 'part2')]); }
   P.sections.forEach(sec => modes.push(['sec:' + sec.id, sec.title, pick(P, 'sec:' + sec.id)]));
+  const taken = rawAttempts().some(a => a.paperId === P.id), fresh = freshCount(P, 'all'), dflt = taken ? 'shuffle' : 'orig';
   const hasChoice = P.sections.some(s => s.attempt && s.attempt < s.questions.length);
   app.innerHTML = `
   <div class="crumbs"><a href="#/">Subjects</a> › <a href="#/subject/${S.key}">${esc(S.name)}</a> › ${esc(P.title)}</div>
@@ -408,16 +550,16 @@ function viewInstr(id) {
     </ul>
     ${P.kind === 'pyq' ? `<div class="notice"><b>Board ${esc(P.year)} paper — third-party copy.</b> ${P.note || 'Typed in from a public transcription; not checked against the board PDF.'}</div>`
       : `<div class="notice"><b>Mock test.</b> ${P.note || 'Written from the textbook chapters in the board paper\'s format. Not an actual past paper.'}</div>`}
+    <h3>Question set</h3>
+    <div class="qsets">${[['orig', 'Original', 'The paper exactly as written.', true],
+      ['shuffle', 'Shuffled', 'Same questions in a new order, with the answer options re-arranged — so you cannot just remember the answer key.', true],
+      ['fresh', 'Fresh mix', 'Different questions of the same type and chapter, taken from the other mocks you have not seen yet.', fresh > 0]].map(o => `<label class="qset ${o[3] ? '' : 'off'}"><input type="radio" name="qset" value="${o[0]}" ${o[0] === dflt ? 'checked' : ''} ${o[3] ? '' : 'disabled'}><span><b>${o[1]}</b>${o[0] === 'fresh' && o[3] ? ` <span class="small muted">(${fresh} of ${all.length} questions change)</span>` : ''}<br><span class="small muted">${o[3] ? o[2] : 'Not available for this paper.'}</span></span></label>`).join('')}</div>
     <h3>Choose how to attempt</h3>
     <div class="modes">${modes.map(m => `<button class="btn ${m[0] === 'all' ? 'pri' : ''}" data-mode="${esc(m[0])}">${esc(m[1])} · ${marksOf(m[2])} marks · ${minutesFor(P, m[2])} min</button>`).join('')}</div>
   </div>`;
   app.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => {
-    const cur = active();
-    if (cur && !confirm('A test is already in progress. Starting a new one will discard it. Continue?')) return;
-    const qs = pick(P, b.dataset.mode);
-    saveActive({ id: 'a' + Date.now(), paperId: P.id, mode: b.dataset.mode, qids: qs.map(q => q.id), startedAt: Date.now(),
-      endsAt: Date.now() + minutesFor(P, qs) * 60000, answers: {}, flags: {}, seen: {}, cur: 0, self: {} });
-    go('#/test');
+    const sel = app.querySelector('input[name="qset"]:checked');
+    startAttempt(P, b.dataset.mode, sel ? sel.value : 'orig');
   });
 }
 
@@ -427,12 +569,12 @@ function viewTest() {
   if (!A) return go('#/');
   if (!valid(A)) { saveActive(null); return go('#/'); }
   if (rawAttempts().some(a => a.id === A.id)) { saveActive(null); return go('#/result/' + A.id); }
-  const P = paperById(A.paperId), all = flat(P);
-  const qs = A.qids.map(id => all.find(q => q.id === id));
+  const P = paperById(A.paperId);
+  const qs = qsOf(A);
   const groups = groupBySec(qs);
   const grp = id => groups.find(g => g.sec.id === id);
   app.innerHTML = `
-  <div class="tbar"><div><h2>${esc(P.title)}</h2><span class="muted small">${esc(modeLabel(P, A.mode))} · ${marksOf(qs)} marks</span></div>
+  <div class="tbar"><div><h2>${esc(P.title)}</h2><span class="muted small">${esc(modeLabel(P, A.mode))} · ${marksOf(qs)} marks${A.variant ? ` · <b>${esc(variantLabel(A))}</b>` : ''}</span></div>
     <div style="display:flex;gap:10px;align-items:center"><span class="timer" id="timer">--:--:--</span><button class="btn pri" id="submit">Submit test</button></div></div>
   <div class="tlayout"><div class="card" id="qbox"></div>
     <aside class="card pal"><h3>Question palette</h3><div id="palette"></div>
@@ -560,7 +702,7 @@ function viewTest() {
         <button class="btn sm ${A.flags[q.id] ? 'danger' : ''}" id="flag">${A.flags[q.id] ? '⚑ Flagged' : '⚐ Flag for review'}</button></div>
       <div class="secinfo"><b>${esc(q.sec.title)}</b>${n < g.qs.length ? ` — <b>Attempt any ${n} of ${g.qs.length}</b>` : ''}${q.sec.instruction ? ' — ' + esc(q.sec.instruction) : ''}
         <div style="margin-top:6px"><span id="secstat" class="chip gray"></span></div>${q.sec.passage ? `<div class="pass">${q.sec.passage}</div>` : ''}</div>
-      <div class="qtext">${q.q}</div>${input}
+      <div class="qtext">${q.q}</div>${figHtml(q, false)}${input}
       <div class="qtools">${isAns(v) ? '<button class="btn sm" id="clear">Clear answer</button>' : ''}${undo ? '<span class="small muted">Answer cleared.</span> <button class="btn sm pri" id="undo">Undo</button>' : ''}${isAns(v) ? '<span class="small saved">✓ Saved</span>' : ''}</div>
       <div class="qfoot"><button class="btn" id="prev" ${A.cur === 0 ? 'disabled' : ''}>‹ Previous</button>
         <button class="btn pri" id="next" ${A.cur === qs.length - 1 ? 'disabled' : ''}>Next ›</button></div>`;
@@ -630,7 +772,7 @@ function viewResult(id) {
   async function runAI() {
     if (!window.AIG || !AIG.enabled() || aiRunning.has(A.id)) return;
     const todo = [];
-    flat(P).forEach(q => { const v = A.answers[q.id]; if (q.type === 'self' && A.qids.includes(q.id) && isAns(v) && !(A.self && A.self[q.id] != null) && !(A.ai && A.ai[q.id])) todo.push({ q, answer: v }); });
+    qsOf(A).forEach(q => { const v = A.answers[q.id]; if (q.type === 'self' && isAns(v) && !(A.self && A.self[q.id] != null) && !(A.ai && A.ai[q.id])) todo.push({ q, answer: v }); });
     if (!todo.length) return;
     aiRunning.add(A.id); aiState = 'run'; summary();
     let res = null; try { res = await AIG.grade(todo); } catch (e) { res = null; }
@@ -650,7 +792,7 @@ function viewResult(id) {
     <div class="card"><div class="score">
       <div class="ring ${g.cls}" style="--p:${r.pct}"><div><div><b>${fmt(r.got)}</b><br><span class="muted">/ ${r.total}</span></div></div></div>
       <div style="flex:1;min-width:260px"><h2 style="margin-bottom:4px">${fmt(r.pct)}% — ${g.label}</h2>
-        <span class="chip ${passed ? 'ok' : 'bad'}">${passed ? 'PASS' : 'BELOW PASS MARK'} (pass ${BOARD.passPercent}%)</span>
+        <span class="chip ${passed ? 'ok' : 'bad'}">${passed ? 'PASS' : 'BELOW PASS MARK'} (pass ${BOARD.passPercent}%)</span>${A.variant ? ` <span class="chip gray">${esc(variantLabel(A))}</span>` : ''}
         ${aiBanner(r)}
         ${r.selfAuto ? `<p class="small" style="margin-top:10px">✅ <b>${r.selfAuto}</b> written answer(s) were checked automatically against the model answer. Disagree with one? Change its marks in the review below — your marks always win.</p>` : ''}
         ${r.selfPending ? `<p class="small" style="margin-top:10px"><b>${r.selfPending}</b> written answer(s) cannot be checked automatically (drawings, proofs, long explanations) — scroll to the review and award yourself marks against the model answer. Score updates live.</p>` : ''}
@@ -663,10 +805,11 @@ function viewResult(id) {
       <div class="card"><h3>Section-wise</h3><table>${Object.entries(r.secs).map(([k, v]) => `<tr><td>${esc(k)}</td><td class="nowrap">${fmt(v.got)} / ${v.tot}</td><td>${bar(v.got, v.tot)}</td></tr>`).join('')}</table></div>
       <div class="card"><h3>Chapter-wise (weakest first)</h3><table>${Object.entries(r.chaps).sort((a, b) => a[1].got / a[1].tot - b[1].got / b[1].tot).map(([k, v]) => `<tr><td>${esc(k)}</td><td class="nowrap">${fmt(v.got)} / ${v.tot}</td><td>${bar(v.got, v.tot)}</td></tr>`).join('')}</table></div>
     </div>
-    <div style="margin:16px 0;display:flex;gap:8px;flex-wrap:wrap"><a class="btn pri" href="#/report/${A.id}">🖨 Report card (print / PDF)</a><button class="btn" data-go="#/paper/${encodeURIComponent(P.id)}">Retake</button><button class="btn" data-go="#/progress">My progress</button><button class="btn" data-go="#/history">All my results</button></div>
+    <div style="margin:16px 0;display:flex;gap:8px;flex-wrap:wrap"><a class="btn pri" href="#/report/${A.id}">🖨 Report card (print / PDF)</a><button class="btn" data-retake="shuffle" title="Same questions, new order and re-arranged options">↻ Retake (shuffled)</button>${freshCount(P, A.mode) ? '<button class="btn" data-retake="fresh" title="Different questions of the same type, from other mocks">✨ Retake (fresh mix)</button>' : ''}<button class="btn" data-go="#/progress">My progress</button><button class="btn" data-go="#/history">All my results</button></div>
     <div class="rvhead"><h2 style="margin:0">Answer review &amp; worked solutions</h2><button class="btn sm noprint" id="printrev">🖨 Print review with solutions</button></div>
     <div class="filters">${[['all', 'All'], ['wrong', 'Incorrect'], ['skip', 'Not attempted'], ['self', 'Written answers'], ['correct', 'Correct']].map(f => `<button class="btn sm ${filter === f[0] ? 'pri' : ''}" data-f="${f[0]}">${f[1]}</button>`).join('')}</div>`;
     document.querySelectorAll('#sum [data-go]').forEach(b => b.onclick = () => go(b.dataset.go));
+    document.querySelectorAll('#sum [data-retake]').forEach(b => b.onclick = () => startAttempt(P, A.mode, b.dataset.retake));
     document.getElementById('printrev').onclick = () => window.print();
     document.querySelectorAll('[data-f]').forEach(b => b.onclick = () => { filter = b.dataset.f; summary(); review(); });
     return r;
@@ -690,13 +833,13 @@ function viewResult(id) {
       const mark = q.type === 'self' && isAns(v) ? `<div class="selfmark ${msrc || 'pending'}"><b>${manual ? 'Your marks' : ai ? '🤖 AI examiner' : auto ? 'Auto-checked' : 'Award yourself marks'}:</b>
         <select data-q="${esc(q.id)}"><option value="">${ai ? `AI: ${fmt(ai.m)} / ${q.marks}` : auto ? `Auto: ${fmt(auto.marks)} / ${q.marks}` : '— choose —'}</option>${Array.from({ length: q.marks * 2 + 1 }, (_, i) => i / 2).map(m => `<option value="${m}" ${manual && A.self[q.id] === m ? 'selected' : ''}>${m} / ${q.marks}</option>`).join('')}</select>
         <span class="small muted">${manual ? (auto || ai ? `You changed the marks — pick “${ai ? 'AI' : 'Auto'}” to go back.` : 'Compare with the model answer below.') : ai ? 'Marked by the AI examiner. Not right? Change it.' : auto ? esc(why) + ' Not right? Change it.' : 'This one cannot be auto-checked — compare with the model answer below.'}</span></div>` : '';
-      const src = q.year ? `<span class="chip ok">Asked in Board ${esc(q.year)}</span>` : '';
+      const src = (q.year ? `<span class="chip ok">Asked in Board ${esc(q.year)}</span>` : '') + (q.foreign ? ` <span class="chip gray" title="This question came from another mock in the fresh mix">From ${esc(q.foreign.title)}</span>` : '');
       const extra = !counted ? (st === 'skip' ? '<span class="chip gray" title="This section only asks for some of its questions, and you answered enough others">Optional — you did not need this one</span>' : '<span class="chip gray">Extra answer — not counted</span>') : '';
       const stLabel = st === 'self' ? (msrc === 'ai' ? 'AI-marked' : msrc === 'auto' ? 'Auto-checked' : msrc === 'manual' ? 'Self-marked' : 'Needs your marks') : st === 'skip' ? (counted ? 'Not attempted' : 'Skipped') : st;
       const stCls = st === 'correct' ? 'ok' : st === 'wrong' ? 'bad' : st === 'self' && msrc ? (got >= q.marks ? 'ok' : got > 0 ? 'warn' : 'bad') : 'gray';
       return `<div class="card rev ${st} ${counted ? '' : 'extra'}"><div class="qhead"><div><span class="chip">Q${n}</span> <span class="chip gray">${esc(q.sec.title)}</span> <span class="chip gray">${esc(q.chapter || '')}</span> ${src}${r.tracked ? ` <span class="chip gray" title="Time you spent on this question">⏱ ${dur(t)}</span>` : ''}${chg ? ` <span class="chip gray" title="Times you changed your answer">changed ${chg}×</span>` : ''}</div>
         <div>${extra} <span class="chip ${stCls}">${stLabel}</span> <b>${counted ? fmt(got) : '–'} / ${q.marks}</b></div></div>
-        <div class="qtext">${q.q}</div>${body}${mark}
+        <div class="qtext">${q.q}</div>${figHtml(q, true)}${body}${mark}
         ${ai && !manual && (ai.fb || (ai.missing || []).length || (ai.steps || []).length) ? `<div class="aifb">${ai.fb ? `<div>${esc(ai.fb)}</div>` : ''}${(ai.steps || []).length ? `<div class="aisteps"><b>How to get full marks, step by step</b><ol>${ai.steps.map(x => `<li>${esc(x)}</li>`).join('')}</ol></div>` : ''}${(ai.missing || []).length ? `<div class="small muted">Not covered: ${ai.missing.map(esc).join('; ')}</div>` : ''}${ai.tip ? `<div class="aitip">💡 ${esc(ai.tip)}</div>` : ''}</div>` : ''}
         <div class="sol"><b>${q.type === 'self' ? 'Model answer, step by step' : 'Solution'}:</b>${solHtml(q)}</div></div>`;
     }).join('') : '<div class="empty">Nothing in this filter.</div>';
@@ -717,7 +860,7 @@ function viewHistory() {
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><a class="btn" href="#/progress">📈 Progress</a><button class="btn" id="csv">⬇ Export CSV</button></div>
     <div class="card"><div class="tscroll"><table><tr><th>Date</th><th>Paper</th><th>Score</th><th>Grade</th><th></th></tr>
     ${arr.map(a => { const P = paperById(a.paperId); const r = evaluate(a), g = gradeOf(r.pct);
-      return `<tr><td class="nowrap">${new Date(a.submittedAt).toLocaleString()}</td><td>${esc(P.title)}<div class="small muted">${esc(modeLabel(P, a.mode))}</div></td><td class="nowrap">${fmt(r.got)} / ${r.total} (${fmt(r.pct)}%)</td><td>${g.label}${r.selfPending ? ' <span class="chip warn">needs your marks</span>' : ''}</td>
+      return `<tr><td class="nowrap">${new Date(a.submittedAt).toLocaleString()}</td><td>${esc(P.title)}<div class="small muted">${esc(modeLabel(P, a.mode))}${a.variant ? ' · ' + esc(variantLabel(a)) : ''}</div></td><td class="nowrap">${fmt(r.got)} / ${r.total} (${fmt(r.pct)}%)</td><td>${g.label}${r.selfPending ? ' <span class="chip warn">needs your marks</span>' : ''}</td>
       <td class="right nowrap"><a class="btn sm" href="#/result/${a.id}">View</a> <a class="btn sm" href="#/report/${a.id}">Report</a> <button class="btn sm danger" data-del="${a.id}">Delete</button></td></tr>`; }).join('')}</table></div></div>`
     : '<div class="card empty">You have not taken any test yet.<br><br><a class="btn pri" href="#/">Pick a subject</a></div>');
   const csv = document.getElementById('csv'); if (csv) csv.onclick = exportCSV;
@@ -730,7 +873,7 @@ function exportCSV() {
   const rows = [['Date', 'Student', 'Email', 'Subject', 'Paper', 'Mode', 'Marks obtained', 'Total marks', 'Percent', 'Grade', 'Result', 'Minutes taken', 'Seconds taken', 'Accuracy %', 'Attempt rate %', 'Self-marking pending']];
   attempts().slice().reverse().forEach(a => {
     const P = paperById(a.paperId), r = evaluate(a), g = gradeOf(r.pct);
-    rows.push([new Date(a.submittedAt).toISOString().slice(0, 16).replace('T', ' '), st.name, st.email, subj(P.subject).name, P.title, modeLabel(P, a.mode),
+    rows.push([new Date(a.submittedAt).toISOString().slice(0, 16).replace('T', ' '), st.name, st.email, subj(P.subject).name, P.title, modeLabel(P, a.mode) + (a.variant ? ' · ' + variantLabel(a) : ''),
       fmt(r.got), r.total, fmt(r.pct), g.label, r.pct >= BOARD.passPercent ? 'Pass' : 'Below pass mark', Math.round(r.secsTaken / 60), Math.round(r.secsTaken), r.acc == null ? '' : fmt(Math.round(r.acc)), fmt(Math.round(r.attemptRate)), r.selfPending]);
   });
   const blob = new Blob(['﻿' + rows.map(r => r.map(q).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
@@ -763,7 +906,7 @@ function heatmap(days) {
     for (let i = 0; i < 7; i++) {
       if (i === 0 && d.getMonth() !== lastM) { lastM = d.getMonth(); label = d.toLocaleDateString(undefined, { month: 'short' }); }
       if (d > end) cells += '<i class="hc off"></i>';
-      else { const x = days[dayKey(d)], lv = !x ? 0 : Math.min(4, x.n); cells += `<i class="hc l${lv}" title="${x ? x.n + ' test' + (x.n > 1 ? 's' : '') + ' · ' + dur(x.secs) : 'No tests'} — ${esc(dateStr(d))}"></i>`; }
+      else { const x = days[dayKey(d)], lv = !x ? 0 : Math.min(4, x.n); cells += `<i class="hc l${lv}" data-tip="${esc(dateStr(d) + '\n' + (x ? x.n + ' test' + (x.n > 1 ? 's' : '') + ' · ' + dur(x.secs) : 'No tests'))}"></i>`; }
       d.setDate(d.getDate() + 1);
     }
     cols += `<div class="hcol"><b>${label}</b>${cells}</div>`;
@@ -776,7 +919,7 @@ function last14(days) {
   const out = []; const t = new Date(); t.setHours(0, 0, 0, 0);
   for (let i = 13; i >= 0; i--) { const d = new Date(t); d.setDate(d.getDate() - i); const x = days[dayKey(d)]; out.push({ d, m: x ? x.secs / 60 : 0, n: x ? x.n : 0 }); }
   const mx = Math.max(10, ...out.map(o => o.m));
-  return `<div class="d14">${out.map(o => `<div class="d14c" title="${esc(dateStr(o.d))}: ${o.n ? o.n + ' test(s), ' + dur(o.m * 60) : 'no tests'}"><i style="height:${Math.max(o.m ? 6 : 2, o.m / mx * 56)}px" class="${o.m ? 'on' : ''}"></i><span>${o.d.toLocaleDateString(undefined, { weekday: 'narrow' })}</span></div>`).join('')}</div>`;
+  return `<div class="d14">${out.map(o => `<div class="d14c" tabindex="0" data-tip="${esc(dateStr(o.d) + '\n' + (o.n ? o.n + ' test' + (o.n > 1 ? 's' : '') + ' · ' + dur(o.m * 60) : 'No tests'))}"><i style="height:${Math.max(o.m ? 6 : 2, o.m / mx * 56)}px" class="${o.m ? 'on' : ''}"></i><span>${o.d.toLocaleDateString(undefined, { weekday: 'narrow' })}</span></div>`).join('')}</div>`;
 }
 function timePanel(A, r) {
   const allot = (A.endsAt - A.startedAt) / 1000, used = Math.min(r.secsTaken, allot), usedPct = allot ? used / allot * 100 : 0;
@@ -797,8 +940,8 @@ function timePanel(A, r) {
     if (r.changes) tiles.push(tile(r.changes, 'answers changed'));
     const timed = r.rows.map((x, i) => Object.assign({ n: i + 1 }, x)).filter(x => x.t > 0);
     const mx = Math.max(1, ...timed.map(x => x.t)), avg = timed.length ? timed.reduce((a, x) => a + x.t, 0) / timed.length : 0;
-    const strip = `<div class="tstrip">${r.rows.map((x, i) => `<div class="tb ${x.st}" title="Q${i + 1}: ${dur(x.t)} · ${x.st === 'skip' ? 'not attempted' : x.st}"><i style="height:${Math.max(x.t ? 4 : 1, x.t / mx * 60)}px"></i></div>`).join('')}</div>
-      <div class="small muted">Time on each question, in order. <span class="dot ok"></span>correct <span class="dot bad"></span>incorrect <span class="dot warn"></span>written <span class="dot gray"></span>not attempted</div>`;
+    const strip = `<div class="tstrip">${r.rows.map((x, i) => `<div class="tb ${x.st}" tabindex="0" data-tip="${esc('Q' + (i + 1) + ' · ' + dur(x.t) + '\n' + (x.st === 'skip' ? 'not attempted' : x.st === 'self' ? 'written answer' : x.st === 'wrong' ? 'incorrect' : x.st))}"><i style="height:${Math.max(x.t ? 4 : 1, x.t / mx * 60)}px"></i></div>`).join('')}</div>
+      <div class="small muted">Time on each question, in order (tallest bar = ${dur(mx)}; hover or tap a bar for details). <span class="dot ok"></span>correct <span class="dot bad"></span>incorrect <span class="dot warn"></span>written <span class="dot gray"></span>not attempted</div>`;
     const slow = timed.slice().sort((a, b) => b.t - a.t).slice(0, 3);
     const avgOf = f => { const xs = timed.filter(f); return xs.length ? xs.reduce((a, x) => a + x.t, 0) / xs.length : null; };
     const ac = avgOf(x => x.st === 'correct'), aw = avgOf(x => x.st === 'wrong');
@@ -878,7 +1021,7 @@ function viewProgress() {
     <div class="kpi"><b>${fmt(Math.max(...all))}%</b>best score</div><div class="kpi"><b>${ss.length} / ${SUBJECTS.length}</b>subjects tried</div></div>
   ${activityCards(list)}
   <div class="grid g2">
-    <div class="card"><h3>Score trend (all tests, oldest → latest)</h3>${trendSvg(all.slice(-20), 560, 170)}<p class="small muted" style="margin:4px 0 0">Red dashed line = pass mark (${BOARD.passPercent}%). Shows up to the last 20 tests.</p></div>
+    <div class="card"><h3>Score trend (all tests, oldest → latest)</h3>${trendSvg(list.slice(-20).map(x => ({ v: x.r.pct, t: x.P.title, d: x.a.submittedAt })), 560, 190)}<p class="small muted" style="margin:4px 0 0">Red dashed line = pass mark (${BOARD.passPercent}%). Shows up to the last 20 tests.</p></div>
     <div class="card"><h3>Focus first — weakest chapters</h3>${weak.length ? `<table>${weak.slice(0, 8).map(w => `<tr><td>${esc(w.k)}<div class="small muted">${esc(w.s.name)}</div></td><td class="nowrap">${fmt(w.p)}%</td><td>${bar(w.got, w.tot)}</td></tr>`).join('')}</table>` : '<p class="muted">Not enough data yet.</p>'}</div>
   </div>
   <div class="card" style="margin-top:16px"><h3>Subject-wise</h3><div class="tscroll"><table><tr><th>Subject</th><th>Tests</th><th>Best</th><th>Average</th><th>Latest</th><th>Trend</th><th>Grade (best)</th></tr>
@@ -910,7 +1053,7 @@ function viewReport(id) {
   const strong = chaps.slice(-2).reverse().filter(c => c[1].got / c[1].tot >= .6), weak = chaps.slice(0, 3).filter(c => c[1].got / c[1].tot < .6);
   app.innerHTML = `<div class="noprint" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><button class="btn pri" id="print">🖨 Print / Save as PDF</button><a class="btn" href="#/result/${A.id}">‹ Back to result</a></div>
   <div class="card report">${reportHead('Practice Test Report Card', [P])}
-    <table class="rinfo"><tr><td><b>Subject</b></td><td>${esc(S.name)}</td><td><b>Paper</b></td><td colspan="3">${esc(P.title)} — ${esc(modeLabel(P, A.mode))}${P.kind === 'pyq' ? ' (Board ' + esc(P.year) + ', third-party copy)' : ' (mock test)'}</td></tr>
+    <table class="rinfo"><tr><td><b>Subject</b></td><td>${esc(S.name)}</td><td><b>Paper</b></td><td colspan="3">${esc(P.title)} — ${esc(modeLabel(P, A.mode))}${A.variant ? ' · ' + esc(variantLabel(A)) : ''}${P.kind === 'pyq' ? ' (Board ' + esc(P.year) + ', third-party copy)' : ' (mock test)'}</td></tr>
     <tr><td><b>Date</b></td><td>${dateStr(A.submittedAt)}</td><td><b>Time taken</b></td><td>${dur(r.secsTaken)} of ${dur((A.endsAt - A.startedAt) / 1000)}</td><td><b>Pass mark</b></td><td>${BOARD.passPercent}%</td></tr></table>
     <div class="rscore"><div class="rbig"><b>${fmt(r.got)}</b> / ${r.total}</div><div class="rbig2">${fmt(r.pct)}%</div>
       <div><span class="chip ${g.min >= 45 ? 'ok' : g.min >= 35 ? 'warn' : 'bad'}" style="font-size:1rem">${g.label}</span> <span class="chip ${passed ? 'ok' : 'bad'}" style="font-size:1rem">${passed ? 'PASS' : 'BELOW PASS MARK'}</span></div></div>
@@ -937,7 +1080,7 @@ function viewOverallReport() {
     return `<div class="rscore"><div class="rbig"><b>${list.length}</b> tests</div><div class="rbig2">${fmt(avgAll)}% avg</div><div class="small">Average of each subject's best score: <b>${fmt(bestSum)}%</b> (${ss.length} of ${SUBJECTS.length} subjects attempted)</div></div>
     <h3>Subject-wise</h3><table class="rtab"><tr><th>Subject</th><th>Tests</th><th>Best</th><th>Average</th><th>Latest</th><th>Grade (best)</th><th>Result</th></tr>
     ${ss.map(x => `<tr><td>${esc(x.s.name)}</td><td>${x.n}</td><td>${fmt(x.best)}%</td><td>${fmt(x.avg)}%</td><td>${fmt(x.latest)}%</td><td>${gradeOf(x.best).label}</td><td>${x.best >= BOARD.passPercent ? 'Pass' : 'Below pass mark'}</td></tr>`).join('')}</table>
-    <h3>Score trend</h3>${trendSvg(list.map(x => x.r.pct).slice(-20), 640, 170)}
+    <h3>Score trend</h3>${trendSvg(list.slice(-20).map(x => ({ v: x.r.pct, t: x.P.title, d: x.a.submittedAt })), 640, 190)}
     <h3>Chapters needing revision</h3>${weak.length ? `<table class="rtab"><tr><th>Chapter</th><th>Subject</th><th>Marks</th><th>%</th><th style="width:30%">Performance</th></tr>${weak.slice(0, 8).map(w => `<tr><td>${esc(w.k)}</td><td>${esc(w.s.name)}</td><td class="nowrap">${fmt(w.got)} / ${w.tot}</td><td>${fmt(w.p)}</td><td>${bar(w.got, w.tot)}</td></tr>`).join('')}</table>` : '<p class="muted">Not enough data yet.</p>'}
     <h3>Test log</h3><table class="rtab"><tr><th>Date</th><th>Paper</th><th>Score</th><th>Grade</th></tr>${list.slice().reverse().slice(0, 25).map(x => `<tr><td class="nowrap">${dateStr(x.a.submittedAt)}</td><td>${esc(x.P.title)} <span class="small muted">· ${esc(modeLabel(x.P, x.a.mode))}</span></td><td class="nowrap">${fmt(x.r.got)} / ${x.r.total} (${fmt(x.r.pct)}%)</td><td>${gradeOf(x.r.pct).label}</td></tr>`).join('')}</table>`;
   })() : '<p class="muted">No tests taken yet.</p>'}
@@ -1062,7 +1205,7 @@ function viewProfile() {
     <div class="card"><h3>My numbers</h3>
       ${list.length ? `<div class="kpis"><div class="kpi"><b>${list.length}</b>tests taken</div><div class="kpi"><b>${fmt(avg)}%</b>average</div>
         <div class="kpi"><b>${fmt(Math.max(...all))}%</b>best</div><div class="kpi"><b>${ss.length} / ${SUBJECTS.length}</b>subjects tried</div></div>
-        <h3 style="margin-top:14px">Score trend</h3>${trendSvg(all.slice(-20), 420, 150)}`
+        <h3 style="margin-top:14px">Score trend</h3>${trendSvg(list.slice(-20).map(x => ({ v: x.r.pct, t: x.P.title, d: x.a.submittedAt })), 420, 190)}`
       : '<p class="muted">No tests yet — take your first test and your numbers appear here.</p><a class="btn pri" href="#/">Pick a subject</a>'}</div>
   </div>
   ${ss.length ? `<div class="card" style="margin-top:16px"><h3>Subject-wise progress</h3><div class="tscroll"><table><tr><th>Subject</th><th>Tests</th><th>Best</th><th>Average</th><th>Latest</th><th>Grade (best)</th></tr>

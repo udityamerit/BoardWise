@@ -78,7 +78,7 @@ const SI = 'Similarity', PY = 'Pythagoras Theorem', CI = 'Circle', CG = 'Co-ordi
     id: 'maths-2025-geometry', subject: 'maths', kind: 'pyq', year: 2025, durationMin: 120,
     title: 'Mathematics Part 2 (Geometry) — Board 2025',
     desc: '40 marks · 2 hours · Q1–Q5 with "any N" choices. Adapted from a third-party answer key.',
-    note: 'Typed from a third-party transcription (omtexclasses.com) of the 2025 Geometry paper; the board\'s own PDF was not available, so wording is paraphrased. Figures are not shown: where the original used a figure, the given lengths and the setting are described in words, so check against your own copy of the paper. Construction questions are self-marked.',
+    note: 'Typed from a third-party transcription (omtexclasses.com) of the 2025 Geometry paper; the board\'s own PDF was not available, so wording is paraphrased. Figures are not copied from the original: where a figure can be drawn from the numbers in the question, a simple sketch (not to scale) is shown; otherwise the given lengths and setting are described in words, so check against your own copy of the paper. Construction questions are self-marked.',
     sections: [
       sec('q1a', 2, 'Q.1 (A) Choose the correct alternative', 4, 'Write the letter of the correct answer.', [
         mcq(1, PY, 'Which of the following is a Pythagorean triplet?', ['(1, 5, 10)', '(3, 4, 5)', '(2, 2, 2)', '(5, 5, 2)'], 1, '3² + 4² = 9 + 16 = 25 = 5².'),
