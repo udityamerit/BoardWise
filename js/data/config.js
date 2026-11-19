@@ -4,7 +4,7 @@ window.PAPERS = [];
 /* AI examiner service (the Cloudflare Worker in /worker). Paste its https URL here after deploying, e.g.
    endpoint: "https://boardwise-ai.<your-subdomain>.workers.dev". Leave '' to use only the built-in rule-based checker.
    Never put an API key in this file — the key lives in the Worker as a secret. */
-window.AI_CFG = { endpoint: '' };
+window.AI_CFG = { endpoint: 'https://boardwise-ai.uditya-boardwise.workers.dev' };
 
 /* Question builders (keeps data files short).
    mcq : auto-marked, answer = index of correct option
