@@ -305,4 +305,6 @@ body.testing .userbox{display:none}
 .aibar .spin{display:inline-block;width:12px;height:12px;border:2px solid #c4b5fd;border-top-color:#6d4aff;border-radius:50%;animation:aispin .8s linear infinite;vertical-align:-2px}
 @keyframes aispin{to{transform:rotate(360deg)}}
 .aifb{margin-top:8px;padding:8px 12px;border-left:3px solid #8b6cff;background:#faf8ff;border-radius:0 8px 8px 0;font-size:.92rem}
+.aisteps{margin-top:6px}.aisteps ol{margin:4px 0 2px 1.2em;padding:0}.aisteps li{margin:3px 0}
+.aitip{margin-top:6px;font-size:.88rem;color:#4b3a99}
 @media print{.aibar .spin{display:none}}

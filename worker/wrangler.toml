@@ -11,13 +11,16 @@ FIREBASE_PROJECT_ID = "ssc-board-prep"
 ALLOW_ANON = "0"
 # "1" = grader + verifier (deep agent). "0" = grader only (half the calls).
 DEEP = "1"
-# Best first. When one is rate-limited / out of credit / failing, the next one is used automatically.
+# Strongest first. When one is rate-limited / out of tokens or credit / failing, the next one is used automatically.
 # "minimax:<id>" uses your MiniMax key; ids without a prefix go through OpenRouter (only if that key is set).
-# MiniMax ids are from platform.minimax.io/docs; OpenRouter ids from openrouter.ai/models. Edit freely.
-MODELS = "minimax:MiniMax-M3.1-Flash,minimax:MiniMax-M3,nvidia/nemotron-3-ultra-550b-a55b:free,google/gemma-4-31b-it:free,qwen/qwen3.8-flash,openrouter/free"
+# The second examiner (verifier) prefers a model from the OTHER provider, so the two opinions are independent.
+# Order: MiniMax -> paid OpenRouter models (strong but cheap) -> free OpenRouter models as a last resort.
+MODELS = "minimax:MiniMax-M3,minimax:MiniMax-M3.1-Flash,deepseek/deepseek-v4-pro,anthropic/claude-haiku-5.5,qwen/qwen3.8-flash,nvidia/nemotron-3-ultra-550b-a55b:free,google/gemma-4-31b-it:free,openrouter/free"
 # MiniMax thinking depth for marking: low | medium | high | xhigh | max (higher = slower, more careful)
 MINIMAX_EFFORT = "medium"
+# Same for OpenRouter models that can think: low | medium | high
+OPENROUTER_EFFORT = "medium"
 
 # API keys are NOT stored here. Set them once from this folder with:
 #   npx wrangler secret put MINIMAX_API_KEY
-#   npx wrangler secret put OPENROUTER_API_KEY      (optional backup)
+#   npx wrangler secret put OPENROUTER_API_KEY      (automatic backup when MiniMax is out of tokens)

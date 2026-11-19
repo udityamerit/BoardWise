@@ -697,7 +697,7 @@ function viewResult(id) {
       return `<div class="card rev ${st} ${counted ? '' : 'extra'}"><div class="qhead"><div><span class="chip">Q${n}</span> <span class="chip gray">${esc(q.sec.title)}</span> <span class="chip gray">${esc(q.chapter || '')}</span> ${src}${r.tracked ? ` <span class="chip gray" title="Time you spent on this question">⏱ ${dur(t)}</span>` : ''}${chg ? ` <span class="chip gray" title="Times you changed your answer">changed ${chg}×</span>` : ''}</div>
         <div>${extra} <span class="chip ${stCls}">${stLabel}</span> <b>${counted ? fmt(got) : '–'} / ${q.marks}</b></div></div>
         <div class="qtext">${q.q}</div>${body}${mark}
-        ${ai && !manual && (ai.fb || (ai.missing || []).length) ? `<div class="aifb">${ai.fb ? esc(ai.fb) : ''}${(ai.missing || []).length ? `<div class="small muted">Not covered: ${ai.missing.map(esc).join('; ')}</div>` : ''}</div>` : ''}
+        ${ai && !manual && (ai.fb || (ai.missing || []).length || (ai.steps || []).length) ? `<div class="aifb">${ai.fb ? `<div>${esc(ai.fb)}</div>` : ''}${(ai.steps || []).length ? `<div class="aisteps"><b>How to get full marks, step by step</b><ol>${ai.steps.map(x => `<li>${esc(x)}</li>`).join('')}</ol></div>` : ''}${(ai.missing || []).length ? `<div class="small muted">Not covered: ${ai.missing.map(esc).join('; ')}</div>` : ''}${ai.tip ? `<div class="aitip">💡 ${esc(ai.tip)}</div>` : ''}</div>` : ''}
         <div class="sol"><b>${q.type === 'self' ? 'Model answer, step by step' : 'Solution'}:</b>${solHtml(q)}</div></div>`;
     }).join('') : '<div class="empty">Nothing in this filter.</div>';
     document.querySelectorAll('[data-q]').forEach(sel => sel.onchange = () => {

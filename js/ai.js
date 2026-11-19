@@ -2,7 +2,7 @@
    and switches between models on its own. Students never enter a key. If the service is not set up, is down, or the
    student is offline, every function here resolves to null and the site keeps using its rule-based checker (js/check.js).
      AIG.enabled()                 -> true when an endpoint is configured
-     AIG.grade(items)              -> Promise<{ [qid]: { m, fb, missing, models } } | null>   items: [{ q, answer }]  */
+     AIG.grade(items)              -> Promise<{ [qid]: { m, fb, steps, tip, missing, models } } | null>   items: [{ q, answer }]  */
 (function () {
 'use strict';
 const CFG = Object.assign({}, window.AI_CFG);
@@ -41,7 +41,7 @@ async function grade(list) {
     if (!res || !Array.isArray(res.results)) continue;                 // that batch stays on the rule-based checker
     res.results.forEach(r => {
       const q = list.find(x => x.q.id === r.id); if (!q || !isFinite(r.marks)) return;
-      out[r.id] = { m: Math.max(0, Math.min(q.q.marks, Math.round(r.marks * 2) / 2)), fb: String(r.feedback || '').slice(0, 400), missing: (r.missing || []).slice(0, 6), models: res.models || [] };
+      out[r.id] = { m: Math.max(0, Math.min(q.q.marks, Math.round(r.marks * 2) / 2)), fb: String(r.feedback || '').slice(0, 500), steps: (Array.isArray(r.steps) ? r.steps : []).slice(0, 6).map(x => String(x).slice(0, 260)), tip: String(r.tip || '').slice(0, 220), missing: (r.missing || []).slice(0, 6), models: res.models || [] };
     });
   }
   return Object.keys(out).length ? out : null;
