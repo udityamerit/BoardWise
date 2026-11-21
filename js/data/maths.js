@@ -176,7 +176,7 @@ const SI = 'Similarity', PY = 'Pythagoras Theorem', CI = 'Circle', CG = 'Co-ordi
         A.self(4, LE, 'Solve by Cramer\'s rule: 3x + 2y = 7 and x − y = 4.', 'D = −3 − 2 = −5; Dx = −7 − 8 = −15; Dy = 12 − 7 = 5. x = <b>3</b>, y = <b>−1</b>.')
       ]),
       sec('p1q5', 1, 'Part 1 · Q.5 Solve any one of the following', 1, 'Attempt any one (3 marks).', [
-        A.self(3, PR, 'A bag contains 4 red, 5 blue and 3 green balls. One ball is drawn at random. Find the probability that it is (i) red, (ii) not blue, (iii) red or green.', 'n(S) = 12. (i) 4/12 = <b>1/3</b>. (ii) 7/12. (iii) 7/12. (1 mark each)'),
+        A.self(3, PR, 'A bag contains 4 red, 5 blue and 3 green balls. One ball is drawn at random. Find the probability that it is (i) red, (ii) not blue, (iii) red or green.', 'n(S) = 12. (i) 4/12 = <b>1/3</b>. (ii) <b>7/12</b>. (iii) <b>7/12</b>. (1 mark each)'),
         A.self(3, ST, 'Number of students playing: Cricket 40, Football 30, Kabaddi 20, Hockey 10. Find the central angle of each sector for a pie diagram.', 'Total 100. Cricket 144°, Football 108°, Kabaddi 72°, Hockey 36° (sum 360°).')
       ]),
 

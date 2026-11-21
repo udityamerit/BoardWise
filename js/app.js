@@ -148,7 +148,7 @@ function evaluate(A) {
       const ranked = items.slice().sort((a, b) => b.got - a.got || ((b.st !== 'skip') - (a.st !== 'skip')) || a.i - b.i);
       keep = new Set(ranked.slice(0, n).map(x => x.q.id));
     }
-    items.forEach(x => { x.counted = keep.has(x.q.id); info[x.q.id] = x; });
+    items.forEach(x => { x.counted = keep.has(x.q.id); x.need = n; x.of = items.length; info[x.q.id] = x; });
   });
   qs.forEach(q => {
     const x = info[q.id];
@@ -161,7 +161,7 @@ function evaluate(A) {
       r.tsecs[sk] = (r.tsecs[sk] || 0) + (tq[q.id] || 0); r.changes += (A.chg && A.chg[q.id]) || 0;
       const ck = q.chapter || 'General'; (r.chaps[ck] = r.chaps[ck] || { got: 0, tot: 0 }); r.chaps[ck].got += x.got; r.chaps[ck].tot += q.marks;
     }
-    r.rows.push({ q, st: x.st, got: x.got, src: x.src, auto: x.auto, pending: x.pending, counted: x.counted, t: tq[q.id] || 0, chg: (A.chg && A.chg[q.id]) || 0 });
+    r.rows.push({ q, st: x.st, got: x.got, src: x.src, auto: x.auto, pending: x.pending, counted: x.counted, need: x.need, of: x.of, t: tq[q.id] || 0, chg: (A.chg && A.chg[q.id]) || 0 });
   });
   r.pct = r.total ? r.got / r.total * 100 : 0;
   r.nQ = r.correct + r.wrong + r.skip + r.selfDone + r.selfPending;           // questions that counted
@@ -959,7 +959,7 @@ function viewResult(id) {
   function review() {
     const r = evaluate(A);
     const rows = r.rows.map((x, i) => Object.assign({ n: i + 1 }, x)).filter(x => filter === 'all' || (x.st === filter && (x.counted || x.st !== 'skip')));
-    document.getElementById('rev').innerHTML = rows.length ? rows.map(({ q, st, got, counted, n, t, chg, src: msrc, auto }) => {
+    document.getElementById('rev').innerHTML = rows.length ? rows.map(({ q, st, got, counted, n, t, chg, src: msrc, auto, need: needN }) => {
       const v = A.answers[q.id];
       tinfo.set(q.id, { q, attempted: isAns(v), got: counted ? got : null, ans: !isAns(v) ? '' : q.type === 'mcq' ? letter(mcqIdx(v)) + '. ' + AIG._text(q.options[mcqIdx(v)]) : String(v) });
       let body = '';
@@ -973,11 +973,11 @@ function viewResult(id) {
         <select data-q="${esc(q.id)}"><option value="">${ai ? `AI: ${fmt(ai.m)} / ${q.marks}` : auto ? `Auto: ${fmt(auto.marks)} / ${q.marks}` : '— choose —'}</option>${Array.from({ length: q.marks * 2 + 1 }, (_, i) => i / 2).map(m => `<option value="${m}" ${manual && A.self[q.id] === m ? 'selected' : ''}>${m} / ${q.marks}</option>`).join('')}</select>
         <span class="small muted">${manual ? (auto || ai ? `You changed the marks — pick “${ai ? 'AI' : 'Auto'}” to go back.` : 'Compare with the model answer below.') : ai ? 'Marked by the AI examiner. Not right? Change it.' : auto ? esc(why) + ' Not right? Change it.' : 'This one cannot be auto-checked — compare with the model answer below.'}</span></div>` : '';
       const src = (q.year ? `<span class="chip ok">Asked in Board ${esc(q.year)}</span>` : '');
-      const extra = !counted ? (st === 'skip' ? '<span class="chip gray" title="This section only asks for some of its questions, and you answered enough others">Optional — you did not need this one</span>' : '<span class="chip gray">Extra answer — not counted</span>') : '';
+      const extra = !counted ? (st === 'skip' ? '<span class="chip gray" title="This section only asks for some of its questions, and you answered enough others">Optional — you did not need this one</span>' : `<span class="chip gray" title="This section asks for any ${needN}. You answered more, so your best ${needN} were counted and this one is shown for practice only.">Extra answer — not added to your total</span>`) : '';
       const stLabel = st === 'self' ? (msrc === 'ai' ? 'AI-marked' : msrc === 'auto' ? 'Auto-checked' : msrc === 'manual' ? 'Self-marked' : 'Needs your marks') : st === 'skip' ? (counted ? 'Not attempted' : 'Skipped') : st;
       const stCls = st === 'correct' ? 'ok' : st === 'wrong' ? 'bad' : st === 'self' && msrc ? (got >= q.marks ? 'ok' : got > 0 ? 'warn' : 'bad') : 'gray';
       return `<div class="card rev ${st} ${counted ? '' : 'extra'}"><div class="qhead"><div><span class="chip">Q${n}</span> ${diffChip(q)} ${src}${r.tracked ? ` <span class="chip gray" title="Time you spent on this question">⏱ ${dur(t)}</span>` : ''}${chg ? ` <span class="chip gray" title="Times you changed your answer">changed ${chg}×</span>` : ''}</div>
-        <div>${extra} <span class="chip ${stCls}">${stLabel}</span> <b>${counted ? fmt(got) : '–'} / ${q.marks}</b></div></div>
+        <div>${extra} <span class="chip ${stCls}">${stLabel}</span> <b${counted || st === 'skip' ? '' : ' class="muted" title="Not added to your total"'}>${counted || st !== 'skip' ? fmt(got) : '–'} / ${q.marks}</b></div></div>
         <div class="qtext">${q.q}</div>${figHtml(q, true)}${body}${mark}
         ${ai && !manual && (ai.fb || (ai.missing || []).length || (ai.steps || []).length) ? `<div class="aifb">${ai.fb ? `<div>${esc(ai.fb)}</div>` : ''}${(ai.steps || []).length ? `<div class="aisteps"><b>How to get full marks, step by step</b><ol>${ai.steps.map(x => `<li>${esc(x)}</li>`).join('')}</ol></div>` : ''}${(ai.missing || []).length ? `<div class="small muted">Not covered: ${ai.missing.map(esc).join('; ')}</div>` : ''}${ai.tip ? `<div class="aitip">💡 ${esc(ai.tip)}</div>` : ''}</div>` : ''}
         <div class="sol"><b>${q.type === 'self' ? 'Model answer, step by step' : 'Solution'}:</b>${solHtml(q)}</div>

@@ -20,7 +20,7 @@ const dihyb = (A, a, B, b, tA, tB, ta, tb) => {
   return '<table class="mini"><tr><th></th>' + gam.map(g => `<th>${g}</th>`).join('') + '</tr>' + rows.map((r, i) => `<tr><th>${gam[i]}</th>` + r.map(c => `<td>${c}</td>`).join('') + '</tr>').join('') + '</table>';
 };
 const dh = (D1, d1, R1, S1, D2, d2, R2, S2, n1, n2) => [`A pure ${D1}, ${D2} plant (${R1}${R1}${R2}${R2}) is crossed with a pure ${d1}, ${d2} plant (${S1}${S1}${S2}${S2}). Using a Punnett square, show the F₁ and F₂ generations of this dihybrid cross and write the phenotypic ratio of F₂. State Mendel's law shown by it.`,
-  `<b>F₁</b> (1 mark): all ${R1}${S1}${R2}${S2} — ${D1}, ${D2}. <b>Gametes of F₁</b> (1 mark): ${R1}${R2}, ${R1}${S2}, ${S1}${R2}, ${S1}${S2}. <b>Punnett square</b> (1½ marks):${dihyb(R1, S1, R2, S2)}<b>F₂ phenotypes</b>: 9 ${D1}-${D2} : 3 ${D1}-${d2} : 3 ${d1}-${D2} : 1 ${d1}-${d2} (1 mark). <b>Law</b> (½ mark): law of independent assortment — alleles of the two traits assort independently.`];
+  `F₁ (1 mark): all <b>${R1}${S1}${R2}${S2}</b> — ${D1}, ${D2}. Gametes of F₁ (1 mark): <b>${R1}${R2}, ${R1}${S2}, ${S1}${R2}, ${S1}${S2}</b>. Punnett square (1½ marks):${dihyb(R1, S1, R2, S2)}F₂ phenotypes: <b>9 : 3 : 3 : 1</b> — 9 ${D1}-${D2} : 3 ${D1}-${d2} : 3 ${d1}-${D2} : 1 ${d1}-${d2} (1 mark). Law (½ mark): <b>law of independent assortment</b> — alleles of the two traits assort independently.`];
 add(2, HR, {
   mcq: [
     ["The scientific name of the plant used by Mendel for his experiments is:", "Pisum sativum", "Oryza sativa", "Zea mays", "Triticum aestivum", "Mendel worked on the garden pea, Pisum sativum."],

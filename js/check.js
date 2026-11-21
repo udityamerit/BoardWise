@@ -94,18 +94,25 @@ function keyScore(key, ans) {
   return hit >= 0.85 ? 1 : hit;
 }
 
-const NOAUTO = /\b(draw|drawn|construct|construction|histogram|sketch|diagram|plot|graph|pie diagram|label|figure|tabulate|complete the table)\b/i;
+/* Questions that ask for a drawing / construction / table cannot be read from typed text. Only an instruction to draw counts ("Draw a circle…",
+   "Explain and draw…"): "a ball is drawn at random", "tangents drawn from P", "what lesson does the poet draw" are ordinary words. */
+const NOAUTO = { test: t => /\b(construct|construction|histogram|sketch|diagram|plot|graph|pie diagram|label|figure|tabulate|complete the table)\b/i.test(t)
+  || /(^|[.?!:;]\s+|\b(?:and|then|also|neatly|first)\s+)draw\b/i.test(String(t).trim()) };
 const roundDown = (x) => Math.floor(x * 2 + 1e-9) / 2;
 
+/* the bold final answers of a model answer that are worth marks on their own */
+const finalKeys = q => keysOf(String(q.solution || "")).filter(k => k.length <= 140 && !/\b(hence|proved|verified|shown|true|false|rejected)\b/i.test(k)
+    && !(q.marks >= 2 && /^[A-Za-z]+(\s[A-Za-z]+)?$/.test(k.trim()) && !/^[a-z]$/i.test(k.trim())));
 function auto(q, answer) {
   if (!q || q.type !== 'self') return null;
   const a = String(answer == null ? '' : answer).trim(); if (!a) return null;
   const qtxt = stripTags(q.q || '');
   if (NOAUTO.test(qtxt)) return null;
   const sol = String(q.solution || '');
+  /* "any clear, relevant lesson": many different answers are right, so word-matching would mark a good answer wrong; the AI examiner / the student decides */
+  if (/\bany\s+(?:one\s+)?(?:clear|relevant|suitable|valid|reasonable|appropriate|sensible)\b/i.test(sol)) return null;
   /* a bold conclusion ("Hence proved", "collinear") is not an answer worth marks on its own */
-  const keys = keysOf(sol).filter(k => k.length <= 140 && !/\b(hence|proved|verified|shown|true|false|rejected)\b/i.test(k)
-    && !(q.marks >= 2 && /^[A-Za-z]+(\s[A-Za-z]+)?$/.test(k.trim()) && !/^[a-z]$/i.test(k.trim())));
+  const keys = finalKeys(q);
   let fk = null, pts = 0, hit = 0;
   if (keys.length) {
     const sc = keys.map(k => keyScore(k, a)).filter(x => x != null);
@@ -244,5 +251,5 @@ function steps(html) {
   return out.filter(x => x.kind === 'given' || (plain(x.html || '') !== '' && plain(x.html || '') !== '.'));
 }
 
-window.CHK = { auto, looseNum, steps, nums, stripTags, _keys: keysOf, _words: words };
+window.CHK = { auto, looseNum, steps, nums, stripTags, _keys: keysOf, _finalKeys: finalKeys, _words: words };
 })();
