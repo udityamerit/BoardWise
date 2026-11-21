@@ -20,10 +20,10 @@ AI marking and the AI tutor run through a small Cloudflare Worker that holds the
 
 ## Roadmap
 
-* **Done:** Maharashtra SSC Class X, all seven subjects with 10 mocks each; AI examiner (grader + cross-provider verifier); AI tutor on every reviewed question; weak-chapter practice sets; question-bank validator and mock-AI test harness (`tools/`).
-* **Deferred (not started):** UP / MP / Bihar board packs and Class XII / CBSE / ICSE.
+* **Done:** Maharashtra SSC Class X, all seven subjects with 10 mocks each; **UP Board (UPMSP) Class X, Hindi medium**, six subjects (Hindi, English, Sanskrit, Maths, Science, Social Science) with 10 mocks each (`js/data/up-*.js`: 70-mark written paper, 3 h 15 min = 15 min reading + 3 h writing, pass 23/70; the 30 internal/practical marks are not tested). Passages and some question banks are original and recur across mocks, and written answers are self-marked (stated in each paper note); AI examiner (grader + cross-provider verifier); AI tutor on every reviewed question; weak-chapter practice sets; question-bank validator and mock-AI test harness (`tools/`).
+* **Deferred (not started):** MP / Bihar board packs, UP Class XII, and Class XII / CBSE / ICSE.
 * **Not possible yet:** real past papers 2019–2024, which need a source that can be fetched and trusted (see "Adding a real paper").
-* **Boards section** (done, `js/data/boards.js`, `#/boards`): UP Board, MP Board and Bihar Board have their own pages marked *Coming soon*, with planned subjects and the pattern *as reported by third-party sites* (not verified). No papers exist for them yet. Next step for each: verify the pattern against the board's own model paper, then build mocks.
+* **Boards section** (done, `js/data/boards.js`, `#/boards`): UP Board is live; MP Board and Bihar Board have their own pages marked *Coming soon*, with planned subjects and the pattern *as reported by third-party sites* (not verified). No papers exist for those two yet. Next step for each: verify the pattern against the board's own model paper, then build mocks.
 * **More boards** (CBSE, ICSE, other state boards): papers are data (`window.PAPERS`), and the board's layout lives in `js/data/config.js`, so a board is a new data pack plus its layout.
 * **Deep agents**: AI tutors and answer evaluators, which need server-side secrets, so they will run as serverless functions beside the static site (see Hosting).
 

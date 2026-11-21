@@ -151,3 +151,6 @@ window.GRADES = [
   { min: 35, label: "Pass Class", cls: "g-pass" },
   { min: 0,  label: "Below pass mark", cls: "g-fail" }
 ];
+
+/* Per-board settings (pass mark, grades, timing). Another board adds its own entry in its own config file. */
+window.BOARD_CFG = { msbshse: Object.assign({}, window.BOARD, { grades: window.GRADES }) };

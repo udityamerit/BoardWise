@@ -6,14 +6,8 @@ window.BOARDS = [
     status: 'live', levels: [{ name: 'Class X (SSC)', live: true }, { name: 'Class XII (HSC)' }], medium: 'English medium', site: 'https://www.mahahsscboard.in/',
     blurb: 'Class X: 10 mock tests each for Maths, Science, History & Political Science, English, Geography, Hindi and Marathi. Class XII is planned.' },
   { key: 'upmsp', name: 'UP Board', full: 'Uttar Pradesh Madhyamik Shiksha Parishad (UPMSP)', short: 'Uttar Pradesh', state: 'Uttar Pradesh', color: '#d9480f', icon: '🪔',
-    status: 'planned', levels: [{ name: 'Class X (High School)' }, { name: 'Class XII (Intermediate)' }], medium: 'Hindi + English medium (planned)', site: 'https://upmsp.edu.in/',
-    blurb: 'High School board mock tests with an objective (OMR-style) part and a descriptive part.',
-    subjects: ['Hindi', 'English', 'Mathematics', 'Science', 'Social Science', 'Sanskrit / other 2nd language'],
-    reported: [
-      'Theory is most often reported as 70 marks with 30 internal/practical (an older 80 + 20 split is also quoted).',
-      'Written paper reported as about 20 marks objective (OMR) + about 50 marks descriptive, 3 hours.',
-      'Pass mark reported as 33% (theory and practical separately).'
-    ] },
+    status: 'live', levels: [{ name: 'Class X (High School)', live: true }, { name: 'Class XII (Intermediate)' }], medium: 'Hindi medium', site: 'https://upmsp.edu.in/',
+    blurb: 'Class X, Hindi medium: 10 mock tests each for Hindi, English, Sanskrit, Mathematics, Science and Social Science, in the layout of the official UPMSP 2026-27 model papers (70 marks: 20 OMR multiple-choice + 50 descriptive, 3 h 15 min). Class XII is planned.' },
   { key: 'mpbse', name: 'MP Board', full: 'Madhya Pradesh Board of Secondary Education (MPBSE)', short: 'Madhya Pradesh', state: 'Madhya Pradesh', color: '#0f9d6b', icon: '🐅',
     status: 'planned', levels: [{ name: 'Class X' }, { name: 'Class XII' }], medium: 'Hindi + English medium (planned)', site: 'https://mpbse.nic.in/',
     blurb: 'Mock tests following the board blueprint, with chapter-wise weightage.',
