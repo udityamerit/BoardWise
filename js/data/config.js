@@ -40,8 +40,8 @@ window.YEARS = [
    Layouts marked approximate could not be fetched and are a best-effort design. */
 window.SUBJECTS = [
   {
-    key: "maths", name: "Mathematics", short: "Maths 1 + 2", icon: "📐", color: "#3b4fd8", total: 80, durationNote: "2 h per paper (Part 1 and Part 2 are separate papers)",
-    blurb: "Part 1 (Algebra) and Part 2 (Geometry): two 40-mark, 2-hour papers, taken together here as one 80-mark paper.",
+    key: "maths", name: "Mathematics", short: "Maths 1 + 2", icon: "📐", color: "#3b4fd8", total: 80, durationNote: "2 hours per paper: Part 1 and Part 2 are separate 40-mark papers, written on separate days",
+    blurb: "Part 1 (Algebra) and Part 2 (Geometry): two separate 40-mark papers of 2 hours each, as in the board exam.",
     pattern: [
       ["Q.1 (A) – MCQ", 4, "4 questions, all compulsory, 1 mark each (per part)"],
       ["Q.1 (B) – One-line answers", 4, "4 questions, all compulsory, 1 mark each (per part)"],
@@ -59,8 +59,8 @@ window.SUBJECTS = [
     }
   },
   {
-    key: "science", name: "Science & Technology", short: "Science 1 + 2", icon: "🔬", color: "#0f9d6b", total: 80, durationNote: "2 h per paper (Part 1 and Part 2 are separate papers)",
-    blurb: "Part 1 (Physics + Chemistry) and Part 2 (Biology + Environment): two 40-mark papers taken together as one 80-mark paper.",
+    key: "science", name: "Science & Technology", short: "Science 1 + 2", icon: "🔬", color: "#0f9d6b", total: 80, durationNote: "2 hours per paper: Part 1 and Part 2 are separate 40-mark papers, written on separate days",
+    blurb: "Part 1 (Physics + Chemistry) and Part 2 (Biology + Environment): two separate 40-mark papers of 2 hours each, as in the board exam.",
     pattern: [
       ["Q.1 (A) – MCQ", 5, "5 questions, compulsory, 1 mark each (per part)"],
       ["Q.1 (B) – One-line answers", 5, "5 questions, compulsory, 1 mark each (per part)"],
@@ -75,7 +75,7 @@ window.SUBJECTS = [
     }
   },
   {
-    key: "english", name: "English", short: "English", icon: "📖", color: "#c77700", total: 80, durationNote: "3 h",
+    key: "english", name: "English", short: "English", icon: "📖", color: "#c77700", total: 80, durationNote: "3 hours (80 marks)",
     blurb: "Reading (textual & non-textual), grammar and writing skills.",
     pattern: [
       ["Reading skills – textual", 20, "Prose / poetry comprehension and appreciation"],
@@ -87,7 +87,7 @@ window.SUBJECTS = [
     chapters: { "Syllabus": ["Prose (≈64 pages)", "Poetry (≈250 lines)", "Short stories and one-act play (non-detailed)", "Grammar and writing skills"] }
   },
   {
-    key: "history", name: "History & Political Science", short: "History", icon: "🏛️", color: "#8a4fd8", total: 40, durationNote: "2 h",
+    key: "history", name: "History & Political Science", short: "History", icon: "🏛️", color: "#8a4fd8", total: 40, durationNote: "2 hours (40 marks)",
     blurb: "Social Science Paper I – History (28) + Political Science (12) = 40 marks.",
     pattern: [
       ["Q.1 – Fill-ins / wrong pairs", 6, "Q.1 (A) 3 + Q.1 (B) 3, compulsory, 1 mark each"],
@@ -107,7 +107,7 @@ window.SUBJECTS = [
     }
   },
   {
-    key: "geography", name: "Geography", short: "Geography", icon: "🌍", color: "#0a8aa6", total: 28, durationNote: "90 min",
+    key: "geography", name: "Geography", short: "Geography", icon: "🌍", color: "#0a8aa6", total: 28, durationNote: "90 min on this site (our 28-mark version; the full board Geography paper is 2 h)",
     blurb: "Social Science Paper II – Geography (28 marks).",
     pattern: [
       ["Q.1 – MCQ", 6, "6 questions, compulsory, 1 mark each"],
@@ -119,7 +119,7 @@ window.SUBJECTS = [
     chapters: { "Geography": ["Field Visit", "Location and Extent", "Physiography and Drainage", "Climate", "Natural Vegetation and Wildlife", "Population", "Human Settlements", "Economy and Occupations", "Tourism, Transport and Communication"] }
   },
   {
-    key: "hindi", name: "Hindi", short: "हिंदी", icon: "🇮🇳", color: "#d6334a", total: 80, durationNote: "3 h",
+    key: "hindi", name: "Hindi", short: "हिंदी", icon: "🇮🇳", color: "#d6334a", total: 80, durationNote: "3 hours (80 marks)",
     blurb: "गद्य, पद्य, व्याकरण और लेखन – 80 अंक।",
     pattern: [
       ["Unseen prose (अपठित गद्यांश)", 16, "MCQ, short and summary questions"],
@@ -131,7 +131,7 @@ window.SUBJECTS = [
     chapters: { "Syllabus": ["Prescribed Hindi textbook (गद्य/पद्य)", "व्याकरण", "लेखन कौशल"] }
   },
   {
-    key: "marathi", name: "Marathi", short: "मराठी", icon: "🚩", color: "#d68a1a", total: 80, durationNote: "3 h",
+    key: "marathi", name: "Marathi", short: "मराठी", icon: "🚩", color: "#d68a1a", total: 80, durationNote: "3 hours (80 marks)",
     blurb: "गद्य, पद्य, व्याकरण आणि लेखन – ८० गुण.",
     pattern: [
       ["Unseen prose (अपठित गद्य)", 16, "MCQ, short and summary questions"],

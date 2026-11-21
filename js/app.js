@@ -1,6 +1,13 @@
 (function () {
 'use strict';
-const SUBJECTS = window.SUBJECTS, PAPERS = window.PAPERS, BOARD = window.BOARD, GRADES = window.GRADES, YEARS = window.YEARS;
+const ALL_SUBJECTS = window.SUBJECTS, PAPERS = window.PAPERS, YEARS = window.YEARS;
+/* Several boards live side by side. The student's chosen board (kept on this device) decides which subjects, pass mark, grade bands and
+   timings the whole site uses; switching board reloads the page so everything is rebuilt for it. Papers/subjects without `board` are Maharashtra SSC. */
+const bdOf = x => (x && x.board) || 'msbshse';
+const BCFG = window.BOARD_CFG || {};
+let ACTIVE = 'msbshse'; try { const b = JSON.parse(localStorage.getItem('bw_board')); if (b && BCFG[b]) ACTIVE = b; } catch (e) {}
+const BOARD = BCFG[ACTIVE] || window.BOARD, GRADES = BOARD.grades || window.GRADES;
+const SUBJECTS = ALL_SUBJECTS.filter(s => bdOf(s) === ACTIVE);
 const app = document.getElementById('app');
 let tick = null, testOff = null;
 
@@ -10,14 +17,20 @@ const LS = {
   get(k, d) { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
 };
-const subj = k => SUBJECTS.find(s => s.key === k);
+const subj = k => ALL_SUBJECTS.find(s => s.key === k);
+function switchBoard(key, hash) {
+  if (!BCFG[key] || key === ACTIVE) return false;
+  try { localStorage.setItem('bw_board', JSON.stringify(key)); } catch (e) {}
+  if (hash != null) location.hash = hash;
+  location.reload(); return true;
+}
 /* "Practice sets" (weak-chapter drills) are built on the fly from questions of the real mocks. Their paper is virtual: it is never in
    PAPERS (so it never shows up in paper lists or counts) and has no questions of its own; every question is a foreign one
    (see makeVariant), filed under the single section below. */
 const VP = new Map();
 function practicePaper(id) {
-  const m = /^practice-([\w-]+)$/.exec(id || ''), S = m && SUBJECTS.find(x => x.key === m[1]); if (!S) return null;
-  if (!VP.has(id)) VP.set(id, { id, subject: S.key, kind: 'practice', board: 'msbshse', level: 'Class X', title: 'Practice set — ' + S.name, sections: [{ id: 'pr', title: 'Practice set', part: null, questions: [] }] });
+  const m = /^practice-([\w-]+)$/.exec(id || ''), S = m && subj(m[1]); if (!S) return null;
+  if (!VP.has(id)) VP.set(id, { id, subject: S.key, kind: 'practice', board: bdOf(S), level: 'Class X', title: 'Practice set — ' + S.name, sections: [{ id: 'pr', title: 'Practice set', part: null, questions: [] }] });
   return VP.get(id);
 }
 const paperById = id => PAPERS.find(p => p.id === id) || practicePaper(id);
@@ -315,7 +328,8 @@ function valid(A) {
   const P = A && paperById(A.paperId); if (!P) return false;
   return qsOf(A).every(Boolean);
 }
-const attempts = () => rawAttempts().filter(valid);
+/* results shown on the history / progress / report pages are those of the board you are using now (pass marks and grades differ per board) */
+const attempts = () => rawAttempts().filter(a => valid(a) && bdOf(paperById(a.paperId)) === ACTIVE);
 
 /* ---------- small charts ---------- */
 /* Charts are drawn at the width they actually have (so text stays readable on a phone) and every mark carries a
@@ -400,6 +414,10 @@ function route(keepScroll) {
   if (a === 'about') return viewAbout();
   if (!authed) return viewAuth(a === 'register' || a === 'forgot' ? a : 'login');
   if (a === 'login' || a === 'register' || a === 'forgot') return go('#/');
+  /* a link to something that belongs to another board (a paper, a result, a running test) switches to that board first */
+  { const A = (a === 'result' || a === 'report') ? rawAttempts().find(x => x.id === b) : a === 'test' ? active() : null;
+    const tg = a === 'paper' ? paperById(decodeURIComponent(b || '')) : a === 'subject' ? subj(b) : A ? paperById(A.paperId) : null;
+    if (tg && bdOf(tg) !== ACTIVE && switchBoard(bdOf(tg))) return; }
   if (a === 'profile') return viewProfile();
   if (!a) return viewHome();
   if (a === 'subject') return viewSubject(b);
@@ -425,14 +443,14 @@ function resumeBanner() {
 }
 
 function viewHome() {
-  const n = PAPERS.length, done = attempts();
-  const real = PAPERS.filter(p => p.kind === 'pyq').length;
+  const BP = PAPERS.filter(p => bdOf(p) === ACTIVE), n = BP.length, done = attempts(), AB = boardOf(ACTIVE);
+  const real = BP.filter(p => p.kind === 'pyq').length;
   app.innerHTML = `
   <section class="hero">
     ${student().name ? `<div class="small" style="opacity:.9;margin-bottom:6px">Welcome back, <b>${esc(student().name)}</b></div>` : ''}
-    <div class="small" style="opacity:.9;margin-bottom:6px">Maharashtra SSC · Class X</div>
+    <div class="small" style="opacity:.9;margin-bottom:6px">${esc(AB ? AB.name : 'Maharashtra SSC')} · Class X${BOARD.medium ? ' · ' + esc(BOARD.medium) : ''}</div>
     <h1>Practice in the real board format</h1>
-    <div class="small" style="margin:-4px 0 10px"><a href="#/boards" style="color:#fff;text-decoration:underline">Other boards (UP, MP, Bihar…) ›</a></div>
+    <div class="small" style="margin:-4px 0 10px">${BOARDS.filter(b => b.status === 'live' && b.key !== ACTIVE).map(b => `<a href="#/board/${b.key}" style="color:#fff;text-decoration:underline;margin-right:14px">Switch to ${esc(b.name)} ›</a>`).join('')}<a href="#/boards" style="color:#fff;text-decoration:underline">All boards ›</a></div>
     <p>Timed papers laid out like the board paper: same sections, "attempt any N" choices, marks and time. Instant marking, board-style grading, report cards and progress tracking. Exams expected ${esc(BOARD.examWindow)}.</p>
     <div class="stats">
       <div class="stat"><b>${SUBJECTS.length}</b>subjects</div>
@@ -477,24 +495,24 @@ function viewAbout() {
 const boardOf = k => BOARDS.find(b => b.key === k);
 function boardCard(b) {
   const live = b.status === 'live';
-  return `<a class="card subj" style="--c:${b.color}" href="${live ? '#/' : '#/board/' + b.key}">
+  return `<a class="card subj" style="--c:${b.color}" href="#/board/${b.key}">
     <div class="ic">${b.icon}</div><h3>${esc(b.name)}</h3>
     <div class="muted small">${esc(b.full)}</div>
     <div class="muted small" style="margin-top:6px">${esc(b.blurb)}</div>
     <div style="margin-top:8px"><span class="chip ${live ? 'ok' : 'gray'}">${live ? 'Live' : 'Coming soon'}</span> <span class="chip gray">${esc(b.medium)}</span>
-      <div style="margin-top:6px">${(b.levels || []).map(l => `<span class="chip ${l.live ? 'ok' : 'gray'}">${esc(l.name)}${l.live ? ' ✓' : ''}</span>`).join(' ')}</div>${live ? ` <span class="chip gray">${PAPERS.length} papers</span>` : ''}</div></a>`;
+      <div style="margin-top:6px">${(b.levels || []).map(l => `<span class="chip ${l.live ? 'ok' : 'gray'}">${esc(l.name)}${l.live ? ' ✓' : ''}</span>`).join(' ')}</div>${live ? ` <span class="chip gray">${PAPERS.filter(p => bdOf(p) === b.key).length} papers</span>` : ''}${b.key === ACTIVE ? ' <span class="chip">Using now</span>' : ''}</div></a>`;
 }
 function viewBoards() {
   app.innerHTML = `
   <section class="hero"><h1>Choose your board</h1>
-    <p>BoardWise carries mock tests for more than one board, for Class X and Class XII. Maharashtra SSC Class X is live now; the rest are next. Each board and class gets its own papers, marking scheme and progress reports.</p></section>
+    <p>BoardWise carries mock tests for more than one board, for Class X and Class XII. Maharashtra SSC Class X and UP Board (UPMSP) Class X in Hindi medium are live now; the rest are next. Each board and class gets its own papers, marking scheme, pass mark, grade bands and progress reports. Tap a live board to switch to it.</p></section>
   <div class="grid g2">${BOARDS.map(boardCard).join('')}</div>
-  <div class="notice"><b>Honest status:</b> only Maharashtra SSC Class X has papers today. For the other boards no question papers have been written yet, and no previous-year paper is claimed. The patterns on each board page are what third-party sites report, not official figures.</div>
+  <div class="notice"><b>Honest status:</b> Maharashtra SSC Class X and UP Board Class X (Hindi medium) have papers today. For the other boards no question papers have been written yet, and no previous-year paper is claimed. The UP Board layout was read from the UPMSP's own 2026-27 syllabus and model papers; the patterns shown for the boards that are not live yet are what third-party sites report, not official figures.</div>
   <h3>Later</h3><p class="muted">${BOARD_ROADMAP.map(x => `<span class="chip gray">${esc(x)}</span>`).join(' ')}</p>`;
 }
 function viewBoard(key) {
   const b = boardOf(key); if (!b) return viewBoards();
-  if (b.status === 'live') return go('#/');
+  if (b.status === 'live') { if (switchBoard(b.key, '#/')) return; return go('#/'); }
   app.innerHTML = `
   <div class="crumbs"><a href="#/boards">Boards</a> › ${esc(b.name)}</div>
   <h1>${b.icon} ${esc(b.name)} <span class="chip gray">Coming soon</span></h1>
@@ -504,7 +522,7 @@ function viewBoard(key) {
   <div class="card"><h3>Planned subjects</h3><p>${b.subjects.map(x => `<span class="chip">${esc(x)}</span>`).join(' ')}</p>
     <h3>Pattern as reported (not verified)</h3><ul class="clean">${b.reported.map(x => `<li>${esc(x)}</li>`).join('')}</ul>
     <p class="small muted">These points come from third-party education sites that disagree with each other. For the authoritative scheme use the board's own site: <a href="${esc(b.site)}" target="_blank" rel="noopener noreferrer">${esc(b.site.replace(/^https?:\/\//, ''))}</a>.</p></div>
-  <p><a class="btn" href="#/boards">‹ All boards</a> <a class="btn pri" href="#/">Open Maharashtra SSC tests</a></p>`;
+  <p><a class="btn" href="#/boards">‹ All boards</a> <a class="btn pri" href="#/">Open ${esc(boardOf(ACTIVE) ? boardOf(ACTIVE).name : 'Maharashtra SSC')} tests</a></p>`;
 }
 
 function viewSubject(key) {
@@ -525,8 +543,8 @@ function viewSubject(key) {
       const real = ps.filter(p => p.kind === 'pyq'), have = new Set(real.map(p => p.year));
       body.innerHTML = (real.length ? real.map(paperCard).join('') + `<div class="notice">These papers are typed in from public third-party copies of the board paper (the board's own PDF was not available). Questions that depend on a figure are described in words or left out. Check anything important against your school's copy.</div>`
         : `<div class="notice">No real previous-year paper for ${esc(s.name)} could be loaded yet. Papers are only added once the actual questions are found; nothing here is invented or given a made-up year.</div>`) + `
-      <div class="pill-row">${YEARS.map(y => `<span class="ypill ${y.na ? 'na' : ''} ${have.has(y.y) ? 'have' : ''}" title="${esc(y.na || (have.has(y.y) ? 'Loaded' : 'Not loaded yet'))}">${y.y}${y.na ? ' ✕' : have.has(y.y) ? ' ✓' : ''}</span>`).join('')}</div>
-      <p class="small muted">2021 is struck out because the Maharashtra SSC exam was not held that year (please verify). A ✓ means a paper for that year is loaded.</p>`;
+      ${ACTIVE === 'msbshse' ? `<div class="pill-row">${YEARS.map(y => `<span class="ypill ${y.na ? 'na' : ''} ${have.has(y.y) ? 'have' : ''}" title="${esc(y.na || (have.has(y.y) ? 'Loaded' : 'Not loaded yet'))}">${y.y}${y.na ? ' ✕' : have.has(y.y) ? ' ✓' : ''}</span>`).join('')}</div>
+      <p class="small muted">2021 is struck out because the Maharashtra SSC exam was not held that year (please verify). A ✓ means a paper for that year is loaded.</p>` : ''}`;
     }
     if (t === 'pat') body.innerHTML = patternBlock(s);
     body.querySelectorAll('[data-go]').forEach(b => b.onclick = () => go(b.dataset.go));
@@ -536,10 +554,10 @@ function viewSubject(key) {
 }
 
 function paperCard(p) {
-  const m = paperMarks(p), n = flat(p).length;
+  const m = paperMarks(p), n = flat(p).length, split = hasParts(p), half = m / 2;
   return `<div class="card paper">
     <div><h3>${esc(p.title)}</h3>
-      <div class="meta"><span class="chip">${m} marks</span><span class="chip gray">${n} questions</span><span class="chip gray">${minutesFor(p, flat(p))} min</span>
+      <div class="meta"><span class="chip">${split ? `2 papers × ${half} marks` : `${m} marks`}</span><span class="chip gray">${n} questions</span><span class="chip gray">${split ? `${minutesFor(p, pick(p, 'part1'))} min each` : `${minutesFor(p, flat(p))} min`}</span>
       <span class="chip ${p.kind === 'pyq' ? 'ok' : 'warn'}">${p.kind === 'pyq' ? 'Board ' + p.year + ' · third-party copy' : 'Mock test'}</span></div>
       <div class="muted small" style="margin-top:6px">${esc(p.desc || '')}</div></div>
     <button class="btn pri" data-go="#/paper/${encodeURIComponent(p.id)}">Open test ›</button></div>`;
@@ -550,19 +568,23 @@ function patternBlock(s) {
     <h3>Marking scheme — ${esc(s.name)}</h3>
     <table><tr><th>Section</th><th>Marks</th><th>Details</th></tr>
     ${s.pattern.map(r => `<tr><td>${esc(r[0])}</td><td>${r[1]}</td><td>${esc(r[2])}</td></tr>`).join('')}</table>
+    ${s.durationNote ? `<p><b>Time allowed:</b> ${esc(s.durationNote)}</p>` : ''}
     <div class="notice">${esc(s.note)}</div>
     <h3>Chapters / syllabus</h3>
     ${Object.entries(s.chapters).map(([k, v]) => `<p><b>${esc(k)}</b></p><ul class="clean">${v.map(c => `<li>${esc(c)}</li>`).join('')}</ul>`).join('')}
-    <p class="small muted">Chapter names are compiled from public study sites and should be checked against the current Balbharati textbook.</p>
+    <p class="small muted">${esc(BOARD.chapterNote || 'Chapter names are compiled from public study sites and should be checked against the current Balbharati textbook.')}</p>
   </div>`;
 }
 
 function viewPattern(key) {
   const list = key ? [subj(key)].filter(Boolean) : SUBJECTS;
+  if (BOARD.patternPoints) return app.innerHTML = `<h1>Paper pattern & marking scheme</h1>
+  <div class="card"><h3>Common to all subjects — ${esc(boardOf(ACTIVE).name)}</h3><ul class="clean">${BOARD.patternPoints.map(t => `<li>${t}</li>`).join('')}</ul></div>
+  ${list.map(s => `<div style="margin-top:16px"><h2>${s.icon} ${esc(s.name)}</h2>${patternBlock(s)}</div>`).join('')}`;
   app.innerHTML = `<h1>Paper pattern & marking scheme</h1>
   <div class="card"><h3>Common to all subjects</h3><ul class="clean">
   <li>Each subject is <b>80 marks written + 20 marks internal/practical = 100</b>. Only the written part is tested here.</li>
-  <li>Maths, Science and Social Science are set as separate <b>40-mark, 2-hour</b> papers (Algebra, Geometry, Science 1, Science 2, History & Political Science, Geography & Economics). Language papers are 80 marks, 3 hours. Maths and Science are two <b>separate papers on separate days</b> (Part 1 and Part 2), so BoardWise times each one on its own, exactly like the board: <b>2 hours each</b>. There is no combined 4-hour paper.</li>
+  <li>Maths, Science and Social Science are set as separate <b>40-mark, 2-hour</b> papers on separate days (Algebra, Geometry, Science 1, Science 2, History & Political Science, Geography & Economics), and BoardWise times each one on its own. Language papers are 80 marks, 3 hours.</li>
   <li>Most questions are <b>"attempt any N of M"</b> (for example Q.2A: solve any 2 of 3). Only your best N answers count, exactly as they would in the exam.</li>
   <li><b>No negative marking.</b> Pass mark: <b>${BOARD.passPercent}%</b> per subject (sources vary between 33% and 35%; confirm with your school).</li>
   <li>Grade bands used by this site: Distinction 75%+, First Class 60–74%, Second Class 45–59%, Pass Class 35–44%.</li>
@@ -679,7 +701,7 @@ function viewTest() {
   function doSubmit(auto) {
     if (done) return;
     flush(); lap(); done = true; clearInterval(tick);
-    A.submittedAt = Math.min(Date.now(), A.endsAt); A.v = 2;
+    A.submittedAt = Math.min(Date.now(), A.endsAt); A.v = 2; if (auto) A.timedOut = true;
     const arr = rawAttempts().filter(a => a.id !== A.id); arr.unshift(A); saveAttempts(arr);
     saveActive(null);
     if (auto) alert('Time is up — your test has been submitted.');
@@ -854,7 +876,7 @@ function viewResult(id) {
         ${aiBanner(r)}
         ${r.selfAuto ? `<p class="small" style="margin-top:10px">✅ <b>${r.selfAuto}</b> written answer(s) were checked automatically against the model answer. Disagree with one? Change its marks in the review below — your marks always win.</p>` : ''}
         ${r.selfPending ? `<p class="small" style="margin-top:10px"><b>${r.selfPending}</b> written answer(s) cannot be checked automatically (drawings, proofs, long explanations) — scroll to the review and award yourself marks against the model answer. Score updates live.</p>` : ''}
-        <p class="small muted">Time taken: ${dur(r.secsTaken)} of ${dur(A.endsAt - A.startedAt === 0 ? 0 : (A.endsAt - A.startedAt) / 1000)}${sk.cur ? ` · <b>🔥 ${sk.cur}-day streak</b>` : ''}</p></div>
+        <p class="small muted">Time taken: ${dur(r.secsTaken)} of ${dur(A.endsAt - A.startedAt === 0 ? 0 : (A.endsAt - A.startedAt) / 1000)}${A.timedOut ? ' · <b>⏰ time was up, so the paper was submitted automatically</b>' : ''}${sk.cur ? ` · <b>🔥 ${sk.cur}-day streak</b>` : ''}</p></div>
       <div class="kpis"><div class="kpi"><b style="color:var(--ok)">${r.correct}</b>auto-marked correct</div><div class="kpi"><b style="color:var(--bad)">${r.wrong}</b>incorrect</div>
         <div class="kpi"><b>${r.skip}</b>not attempted</div><div class="kpi"><b style="color:var(--warn)">${r.selfDone + r.selfPending}</b>written${r.selfPending ? ` (${r.selfPending} to mark)` : ' — all marked'}</div></div>
     </div></div>
@@ -943,11 +965,11 @@ function viewResult(id) {
       const mark = q.type === 'self' && isAns(v) ? `<div class="selfmark ${msrc || 'pending'}"><b>${manual ? 'Your marks' : ai ? '🤖 AI examiner' : auto ? 'Auto-checked' : 'Award yourself marks'}:</b>
         <select data-q="${esc(q.id)}"><option value="">${ai ? `AI: ${fmt(ai.m)} / ${q.marks}` : auto ? `Auto: ${fmt(auto.marks)} / ${q.marks}` : '— choose —'}</option>${Array.from({ length: q.marks * 2 + 1 }, (_, i) => i / 2).map(m => `<option value="${m}" ${manual && A.self[q.id] === m ? 'selected' : ''}>${m} / ${q.marks}</option>`).join('')}</select>
         <span class="small muted">${manual ? (auto || ai ? `You changed the marks — pick “${ai ? 'AI' : 'Auto'}” to go back.` : 'Compare with the model answer below.') : ai ? 'Marked by the AI examiner. Not right? Change it.' : auto ? esc(why) + ' Not right? Change it.' : 'This one cannot be auto-checked — compare with the model answer below.'}</span></div>` : '';
-      const src = (q.year ? `<span class="chip ok">Asked in Board ${esc(q.year)}</span>` : '') + (q.foreign ? ` <span class="chip gray" title="This question came from another mock in the fresh mix">From ${esc(q.foreign.title)}</span>` : '');
+      const src = (q.year ? `<span class="chip ok">Asked in Board ${esc(q.year)}</span>` : '');
       const extra = !counted ? (st === 'skip' ? '<span class="chip gray" title="This section only asks for some of its questions, and you answered enough others">Optional — you did not need this one</span>' : '<span class="chip gray">Extra answer — not counted</span>') : '';
       const stLabel = st === 'self' ? (msrc === 'ai' ? 'AI-marked' : msrc === 'auto' ? 'Auto-checked' : msrc === 'manual' ? 'Self-marked' : 'Needs your marks') : st === 'skip' ? (counted ? 'Not attempted' : 'Skipped') : st;
       const stCls = st === 'correct' ? 'ok' : st === 'wrong' ? 'bad' : st === 'self' && msrc ? (got >= q.marks ? 'ok' : got > 0 ? 'warn' : 'bad') : 'gray';
-      return `<div class="card rev ${st} ${counted ? '' : 'extra'}"><div class="qhead"><div><span class="chip">Q${n}</span> <span class="chip gray">${esc(q.sec.title)}</span> <span class="chip gray">${esc(q.chapter || '')}</span> ${diffChip(q)} ${src}${r.tracked ? ` <span class="chip gray" title="Time you spent on this question">⏱ ${dur(t)}</span>` : ''}${chg ? ` <span class="chip gray" title="Times you changed your answer">changed ${chg}×</span>` : ''}</div>
+      return `<div class="card rev ${st} ${counted ? '' : 'extra'}"><div class="qhead"><div><span class="chip">Q${n}</span> ${diffChip(q)} ${src}${r.tracked ? ` <span class="chip gray" title="Time you spent on this question">⏱ ${dur(t)}</span>` : ''}${chg ? ` <span class="chip gray" title="Times you changed your answer">changed ${chg}×</span>` : ''}</div>
         <div>${extra} <span class="chip ${stCls}">${stLabel}</span> <b>${counted ? fmt(got) : '–'} / ${q.marks}</b></div></div>
         <div class="qtext">${q.q}</div>${figHtml(q, true)}${body}${mark}
         ${ai && !manual && (ai.fb || (ai.missing || []).length || (ai.steps || []).length) ? `<div class="aifb">${ai.fb ? `<div>${esc(ai.fb)}</div>` : ''}${(ai.steps || []).length ? `<div class="aisteps"><b>How to get full marks, step by step</b><ol>${ai.steps.map(x => `<li>${esc(x)}</li>`).join('')}</ol></div>` : ''}${(ai.missing || []).length ? `<div class="small muted">Not covered: ${ai.missing.map(esc).join('; ')}</div>` : ''}${ai.tip ? `<div class="aitip">💡 ${esc(ai.tip)}</div>` : ''}</div>` : ''}
@@ -989,7 +1011,7 @@ function exportCSV() {
       fmt(r.got), r.total, fmt(r.pct), g.label, r.pct >= BOARD.passPercent ? 'Pass' : 'Below pass mark', Math.round(r.secsTaken / 60), Math.round(r.secsTaken), r.acc == null ? '' : fmt(Math.round(r.acc)), fmt(Math.round(r.attemptRate)), r.selfPending]);
   });
   const blob = new Blob(['﻿' + rows.map(r => r.map(q).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
-  const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = 'ssc-results.csv';
+  const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = 'boardwise-results.csv';
   document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(link.href), 1000);
 }
 
@@ -1137,7 +1159,7 @@ function viewProgress() {
     <div class="card"><h3>Focus first — weakest chapters</h3>${weak.length ? `<div class="tscroll"><table class="wk">${weak.slice(0, 8).map(w => `<tr><td>${esc(w.k)}<div class="small muted">${esc(w.s.name)}</div></td><td class="nowrap">${fmt(w.p)}%</td><td style="min-width:70px">${bar(w.got, w.tot)}</td><td class="right"><button class="btn sm" data-prac="${esc(w.s.key)}" data-chap="${esc(w.k)}" title="A short drill on this chapter">Practice ›</button></td></tr>`).join('')}</table></div><p class="small muted" style="margin:8px 0 0">Each button builds a drill of up to 12 questions from that chapter, new questions first.</p>` : '<p class="muted">Not enough data yet.</p>'}</div>
   </div>
   <div class="card" style="margin-top:16px"><h3>Subject-wise</h3><div class="tscroll"><table><tr><th>Subject</th><th>Tests</th><th>Best</th><th>Average</th><th>Latest</th><th>Trend</th><th>Grade (best)</th></tr>
-    ${ss.map(x => `<tr><td>${x.s.icon} <a href="#/subject/${x.s.key}">${esc(x.s.name)}</a></td><td>${x.n}</td><td>${fmt(x.best)}%</td><td>${fmt(x.avg)}%</td><td>${fmt(x.latest)}%</td><td>${spark(x.pcts)}</td><td><span class="chip ${gradeOf(x.best).min >= 45 ? 'ok' : gradeOf(x.best).min >= 35 ? 'warn' : 'bad'}">${gradeOf(x.best).label}</span></td></tr>`).join('')}</table></div>
+    ${ss.map(x => `<tr><td>${x.s.icon} <a href="#/subject/${x.s.key}">${esc(x.s.name)}</a></td><td>${x.n}</td><td>${fmt(x.best)}%</td><td>${fmt(x.avg)}%</td><td>${fmt(x.latest)}%</td><td>${spark(x.pcts)}</td><td><span class="chip ${gradeOf(x.best).min >= 45 ? 'ok' : gradeOf(x.best).min >= BOARD.passPercent ? 'warn' : 'bad'}">${gradeOf(x.best).label}</span></td></tr>`).join('')}</table></div>
     <p class="small muted" style="margin-bottom:0">Includes part-paper and single-section attempts, so compare full papers with full papers where you can.</p></div>
   <div style="margin:16px 0;display:flex;gap:8px;flex-wrap:wrap"><a class="btn pri" href="#/report">🖨 Overall report card (print / PDF)</a><button class="btn" id="csv">⬇ Export CSV</button><a class="btn" href="#/history">All results</a></div>`
   : '<div class="card empty" style="margin-top:16px">No tests yet — your scores, trend and weak chapters will show up here after your first test.<br><br><a class="btn pri" href="#/">Pick a subject</a></div>'}`;
@@ -1322,7 +1344,7 @@ function viewProfile() {
       : '<p class="muted">No tests yet — take your first test and your numbers appear here.</p><a class="btn pri" href="#/">Pick a subject</a>'}</div>
   </div>
   ${ss.length ? `<div class="card" style="margin-top:16px"><h3>Subject-wise progress</h3><div class="tscroll"><table><tr><th>Subject</th><th>Tests</th><th>Best</th><th>Average</th><th>Latest</th><th>Grade (best)</th></tr>
-    ${ss.map(x => `<tr><td>${x.s.icon} <a href="#/subject/${x.s.key}">${esc(x.s.name)}</a></td><td>${x.n}</td><td>${fmt(x.best)}%</td><td>${fmt(x.avg)}%</td><td>${fmt(x.latest)}%</td><td><span class="chip ${gradeOf(x.best).min >= 45 ? 'ok' : gradeOf(x.best).min >= 35 ? 'warn' : 'bad'}">${gradeOf(x.best).label}</span></td></tr>`).join('')}</table></div>
+    ${ss.map(x => `<tr><td>${x.s.icon} <a href="#/subject/${x.s.key}">${esc(x.s.name)}</a></td><td>${x.n}</td><td>${fmt(x.best)}%</td><td>${fmt(x.avg)}%</td><td>${fmt(x.latest)}%</td><td><span class="chip ${gradeOf(x.best).min >= 45 ? 'ok' : gradeOf(x.best).min >= BOARD.passPercent ? 'warn' : 'bad'}">${gradeOf(x.best).label}</span></td></tr>`).join('')}</table></div>
     <p class="small muted" style="margin-bottom:0">Chapter-wise detail is on the <a href="#/progress">Progress</a> page and on each report card.</p></div>` : ''}
   ${recent.length ? `<div class="card" style="margin-top:16px"><h3>Recent results</h3><div class="tscroll"><table><tr><th>Date</th><th>Paper</th><th>Score</th><th></th></tr>
     ${recent.map(x => `<tr><td class="nowrap">${dateStr(x.a.submittedAt)}</td><td>${esc(x.P.title)}<div class="small muted">${esc(modeLabel(x.P, x.a.mode))}</div></td><td class="nowrap">${fmt(x.r.got)} / ${x.r.total} (${fmt(x.r.pct)}%)</td><td class="right nowrap"><a class="btn sm" href="#/result/${x.a.id}">Solutions</a> <a class="btn sm" href="#/report/${x.a.id}">Report</a></td></tr>`).join('')}</table></div></div>` : ''}
