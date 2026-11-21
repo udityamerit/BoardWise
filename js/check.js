@@ -14,11 +14,12 @@ const mathNorm = s => String(s)
   .replace(/[−–—‒﹣－]/g, '-').replace(/[×·∙⋅✕]/g, '*').replace(/÷/g, '/').replace(/＝/g, '=').replace(/\*\*/g, '^')
   .replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/⇒|→|⟹/g, '=>').toLowerCase();
 const compact = s => s.replace(/\s+/g, '').replace(/[*·]/g, '').replace(/[.,;:]+$/, '');
-const UNITS = /\b(or|and|cm|mm|km|m|kg|g|sq|units?|rs|rupees?|degrees?|metres?|meters?|min|minutes?|hours?|hrs?|sec|seconds?|years?|days?|per|cent|percent)\b\.?|[%₹°]/g;
+const UNITS = /\b(or|and|cm|mm|km|m|kg|g|sq|units?|rs|rupees?|degrees?|metres?|meters?|min|minutes?|hours?|hrs?|sec|seconds?|years?|days?|per|cent|percent|each|only|approx|approximately|about|nearly)\b\.?|[%₹°]/g;
 
 /* ----- numbers ----- */
 function nums(text) {
   let t = mathNorm(text).replace(/\^-?\d+/g, '');                      // drop exponents: x^2 -> x
+  t = t.replace(/(?<=[a-z])\.(?=-?\d)/g, ' ');                           // "Rs.6", "approx.4575", "ans.5": a dot after a letter is not a decimal point
   t = t.replace(/\d{1,3}(?:,\d{2,3})+(?!\d)/g, m => m.replace(/,/g, '')); // 1,50,000 -> 150000
   const out = [], re = /(\d+(?:\.\d+)?|\.\d+)(?:\s*\/\s*(\d+(?:\.\d+)?))?/g; let m;
   while ((m = re.exec(t))) {
@@ -138,8 +139,12 @@ function looseNum(accept, answer, tol) {
     if (xc && (xc === a || a.endsWith('=' + xc))) return true;
     const kn = nums(xs.replace(UNITS, ' '));
     if (!kn.length) return false;
-    if (kn.length === 1) return (an.length === 1 || (an.length === 2 && /=/.test(a))) && an.some(v => Math.abs(v - kn[0]) <= t);  // "3 cm", "x = 3"
-    return an.length === kn.length && kn.every((k, i) => Math.abs(an[i] - k) <= t);                                                 // "(2, 1)"
+    /* the same value written twice is still one answer: "₹ 4,575 (or 4575)", "3 or 3", "x = 3 = 3" */
+    const uniq = an.filter((v, i) => an.findIndex(w => Math.abs(w - v) <= t) === i);
+    if (kn.length === 1) return (uniq.length === 1 || (uniq.length === 2 && /=/.test(a))) && an.some(v => Math.abs(v - kn[0]) <= t);  // "3 cm", "x = 3"
+    const same = (x, y) => x.length === y.length && y.every((k, i) => Math.abs(x[i] - k) <= t);
+    if (same(an, kn)) return true;                                                                                                   // "(2, 1)"
+    return an.length > kn.length && an.length % kn.length === 0 && an.every((v, i) => Math.abs(v - kn[i % kn.length]) <= t);          // "(2, 1) or (2, 1)"
   });
 }
 
