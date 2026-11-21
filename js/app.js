@@ -56,8 +56,8 @@ const paperMarks = p => marksOf(flat(p));
 function modeLabel(P, mode) {
   if (P && P.kind === 'practice') return 'Weak-chapter practice';
   if (mode === 'all') return 'Full paper';
-  if (mode === 'part1') return 'Part 1 only';
-  if (mode === 'part2') return 'Part 2 only';
+  if (mode === 'part1') return 'Part 1 paper';
+  if (mode === 'part2') return 'Part 2 paper';
   const s = P && P.sections.find(x => x.id === mode.slice(4));
   return s ? s.title : mode;
 }
@@ -562,7 +562,7 @@ function viewPattern(key) {
   app.innerHTML = `<h1>Paper pattern & marking scheme</h1>
   <div class="card"><h3>Common to all subjects</h3><ul class="clean">
   <li>Each subject is <b>80 marks written + 20 marks internal/practical = 100</b>. Only the written part is tested here.</li>
-  <li>Maths, Science and Social Science are set as separate <b>40-mark, 2-hour</b> papers (Algebra, Geometry, Science 1, Science 2, History & Political Science, Geography & Economics). Language papers are 80 marks, 3 hours. On this site Maths 1+2 and Science 1+2 can be taken as one combined paper, or Part 1 / Part 2 separately.</li>
+  <li>Maths, Science and Social Science are set as separate <b>40-mark, 2-hour</b> papers (Algebra, Geometry, Science 1, Science 2, History & Political Science, Geography & Economics). Language papers are 80 marks, 3 hours. Maths and Science are two <b>separate papers on separate days</b> (Part 1 and Part 2), so BoardWise times each one on its own, exactly like the board: <b>2 hours each</b>. There is no combined 4-hour paper.</li>
   <li>Most questions are <b>"attempt any N of M"</b> (for example Q.2A: solve any 2 of 3). Only your best N answers count, exactly as they would in the exam.</li>
   <li><b>No negative marking.</b> Pass mark: <b>${BOARD.passPercent}%</b> per subject (sources vary between 33% and 35%; confirm with your school).</li>
   <li>Grade bands used by this site: Distinction 75%+, First Class 60–74%, Second Class 45–59%, Pass Class 35–44%.</li>
@@ -583,8 +583,8 @@ function viewInstr(id) {
   const P = paperById(id); if (!P) return viewHome();
   if (P.kind === 'practice') return go('#/progress');
   const S = subj(P.subject), all = flat(P);
-  const modes = [['all', 'Full paper', all]];
-  if (hasParts(P)) { modes.push(['part1', 'Part 1 only', pick(P, 'part1')], ['part2', 'Part 2 only', pick(P, 'part2')]); }
+  /* Maths and Science are two separate board papers (Part 1, Part 2) on separate days, 2 h each; never a combined 4 h sitting */
+  const split = hasParts(P), modes = split ? [['part1', 'Part 1 paper', pick(P, 'part1')], ['part2', 'Part 2 paper', pick(P, 'part2')]] : [['all', 'Full paper', all]];
   P.sections.forEach(sec => modes.push(['sec:' + sec.id, sec.title, pick(P, 'sec:' + sec.id)]));
   const taken = rawAttempts().some(a => a.paperId === P.id), fresh = freshCount(P, 'all');
   const hasChoice = P.sections.some(s => s.attempt && s.attempt < s.questions.length);
@@ -597,7 +597,7 @@ function viewInstr(id) {
     ${structureTable(P)}
     <h3>General instructions</h3>
     <ul class="clean">
-      <li>Total marks: <b>${paperMarks(P)}</b>. Time for the full paper: <b>${minutesFor(P, all)} minutes</b>. The timer cannot be paused; the test submits itself when time ends.</li>
+      <li>${split ? '' : `Total marks: <b>${paperMarks(P)}</b>. `}${split ? `Each paper (Part 1, Part 2) is <b>${paperMarks(P) / 2} marks</b> and takes <b>${minutesFor(P, pick(P, 'part1'))} minutes</b>, as in the board exam; the two parts are separate sittings.` : `Time for the full paper: <b>${minutesFor(P, all)} minutes</b>.`} The timer cannot be paused; the test submits itself when time ends.</li>
       ${hasChoice ? '<li><b>Choices:</b> where a question says "Any N of M", answer the number asked. If you answer more, only your <b>best N</b> are counted.</li>' : ''}
       <li>There is <b>no negative marking</b>. Attempt every question.</li>
       <li>MCQs and short numeric/word answers are <b>marked automatically</b>. Written answers are <b>checked automatically</b> against the model answer when you submit (final answers and key points). Drawings, proofs and long explanations cannot be checked by a computer, so for those you award your own marks — be honest, that is what makes the score useful. You can always correct the marks of any written answer in the review.</li>
@@ -612,7 +612,7 @@ function viewInstr(id) {
       : '<b>First attempt.</b> You get this paper exactly as written. When you retake it, every question you have seen is swapped for a new one.'}
       <div style="margin-top:8px"><b>Difficulty:</b> ${diffMixHtml(all)} <span class="small muted">Every question is labelled <b>Easy</b> (quick, direct) or <b>Medium</b> (a few steps) with a suggested time, so you can plan your minutes.</span></div></div>
     <h3>Choose how to attempt</h3>
-    <div class="modes">${modes.map(m => `<button class="btn ${m[0] === 'all' ? 'pri' : ''}" data-mode="${esc(m[0])}">${esc(m[1])} · ${marksOf(m[2])} marks · ${minutesFor(P, m[2])} min</button>`).join('')}</div>
+    <div class="modes">${modes.map(m => `<button class="btn ${m[0] === 'all' || m[0] === 'part1' ? 'pri' : ''}" data-mode="${esc(m[0])}">${esc(m[1])} · ${marksOf(m[2])} marks · ${minutesFor(P, m[2])} min</button>`).join('')}</div>
   </div>`;
   app.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => {
     startAttempt(P, b.dataset.mode, taken ? 'fresh' : 'orig');

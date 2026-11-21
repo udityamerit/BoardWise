@@ -50,7 +50,7 @@ for (let k = 0; k < 9; k++) {
   window.PAPERS.push({
     id: 'science-mock-' + N, subject: 'science', kind: 'mock', year: null, durationMin: 240,
     title: `Science & Technology (Part 1 + Part 2) — Mock Test ${N}`,
-    desc: 'Physics, Chemistry, Biology and Environment. Two 40-mark parts with "any N" choices (Q1–Q4). Full paper 4 h, or one part at a time (2 h).',
+    desc: 'Physics, Chemistry, Biology and Environment. Two 40-mark parts with "any N" choices (Q1–Q4). Part 1 and Part 2 are separate 2-hour papers, as in the board exam.',
     note: 'Original practice questions written from the Balbharati chapters; no question is repeated across mocks 2–10. The layout (Q1A 5×1, Q1B 5×1, Q2 any 5 of 7, Q3 any 5 of 8, Q4 any 1 of 2) is <b>approximate</b> — it comes from third-party sources, not an official board paper. Numerical answers are marked automatically; descriptive answers are shown with a model answer for you to self-mark. Not an actual board paper.',
     sections
   });

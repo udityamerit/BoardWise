@@ -50,8 +50,8 @@ for (let k = 0; k < 9; k++) {
   window.PAPERS.push({
     id: 'maths-mock-' + N, subject: 'maths', kind: 'mock', year: null, durationMin: 240,
     title: `Mathematics (Algebra + Geometry) — Mock Test ${N}`,
-    desc: 'Both 40-mark papers in the real Q1–Q5 layout with "any N" choices. Take them together (4 h) or one at a time (2 h each).',
-    note: 'Original practice questions generated from the Balbharati chapters in the layout of the 2025 papers; every answer and worked solution is computed from the numbers in the question. Not an actual board paper. Pick "Part 1 only" or "Part 2 only" for a single 2-hour board-style paper.',
+    desc: 'Both 40-mark papers in the real Q1–Q5 layout with "any N" choices. Two separate papers, 2 hours each, as in the board exam.',
+    note: 'Original practice questions generated from the Balbharati chapters in the layout of the 2025 papers; every answer and worked solution is computed from the numbers in the question. Not an actual board paper. Part 1 and Part 2 are separate 2-hour papers, as on the real timetable.',
     sections: [...part(AL, N, k, bld('m' + N + 'a-'), 1, seen), ...part(GE, N, k, bld('m' + N + 'g-'), 2, seen)]
   });
 }

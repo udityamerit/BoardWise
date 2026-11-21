@@ -133,8 +133,8 @@ const SI = 'Similarity', PY = 'Pythagoras Theorem', CI = 'Circle', CG = 'Co-ordi
   window.PAPERS.push({
     id: 'maths-mock-1', subject: 'maths', kind: 'mock', year: null, durationMin: 240,
     title: 'Mathematics (Algebra + Geometry) — Mock Test 1',
-    desc: 'Both 40-mark papers in the real Q1–Q5 layout with "any N" choices. Take them together (4 h) or one at a time (2 h each).',
-    note: 'Original questions written from the Balbharati chapters, in the layout of the 2025 papers. Pick "Part 1 only" or "Part 2 only" for a single 2-hour board-style paper.',
+    desc: 'Both 40-mark papers in the real Q1–Q5 layout with "any N" choices. Two separate papers, 2 hours each, as in the board exam.',
+    note: 'Original questions written from the Balbharati chapters, in the layout of the 2025 papers. Part 1 and Part 2 are separate 2-hour papers, as on the real timetable.',
     sections: [
       sec('p1q1a', 1, 'Part 1 · Q.1 (A) Choose the correct alternative', 4, 'Write the letter of the correct answer.', [
         A.mcq(1, QE, 'The nature of the roots of x² − 6x + 9 = 0 is:', ['two distinct real roots', 'two equal real roots', 'no real roots', 'cannot be determined'], 1, 'Δ = 36 − 36 = 0 ⇒ real and equal roots (x = 3).'),

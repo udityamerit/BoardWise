@@ -40,7 +40,7 @@ window.YEARS = [
    Layouts marked approximate could not be fetched and are a best-effort design. */
 window.SUBJECTS = [
   {
-    key: "maths", name: "Mathematics", short: "Maths 1 + 2", icon: "📐", color: "#3b4fd8", total: 80, durationNote: "2 h per part (4 h combined)",
+    key: "maths", name: "Mathematics", short: "Maths 1 + 2", icon: "📐", color: "#3b4fd8", total: 80, durationNote: "2 h per paper (Part 1 and Part 2 are separate papers)",
     blurb: "Part 1 (Algebra) and Part 2 (Geometry): two 40-mark, 2-hour papers, taken together here as one 80-mark paper.",
     pattern: [
       ["Q.1 (A) – MCQ", 4, "4 questions, all compulsory, 1 mark each (per part)"],
@@ -59,7 +59,7 @@ window.SUBJECTS = [
     }
   },
   {
-    key: "science", name: "Science & Technology", short: "Science 1 + 2", icon: "🔬", color: "#0f9d6b", total: 80, durationNote: "2 h per part (4 h combined)",
+    key: "science", name: "Science & Technology", short: "Science 1 + 2", icon: "🔬", color: "#0f9d6b", total: 80, durationNote: "2 h per paper (Part 1 and Part 2 are separate papers)",
     blurb: "Part 1 (Physics + Chemistry) and Part 2 (Biology + Environment): two 40-mark papers taken together as one 80-mark paper.",
     pattern: [
       ["Q.1 (A) – MCQ", 5, "5 questions, compulsory, 1 mark each (per part)"],

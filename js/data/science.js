@@ -12,7 +12,7 @@ const sec = (id, part, title, attempt, instruction, questions) => ({ id, part, t
 window.PAPERS.push({
   id: 'science-mock-1', subject: 'science', kind: 'mock', year: null, durationMin: 240,
   title: 'Science & Technology (Part 1 + Part 2) — Mock Test 1',
-  desc: 'Physics, Chemistry, Biology and Environment. Two 40-mark parts with "any N" choices (Q1–Q4). Full paper 4 h, or one part at a time (2 h).',
+  desc: 'Physics, Chemistry, Biology and Environment. Two 40-mark parts with "any N" choices (Q1–Q4). Part 1 and Part 2 are separate 2-hour papers, as in the board exam.',
   note: 'Original questions written from the Balbharati chapters. The layout (Q1A 5×1, Q1B 5×1, Q2 any 5 of 7, Q3 any 5 of 8, Q4 any 1 of 2) is <b>approximate</b> — it is taken from third-party sources because the board\'s Science papers could not be fetched. Check it against your school\'s sample paper.',
   sections: [
     sec('p1q1a', 1, 'Part 1 · Q.1 (A) Choose the correct option', 5, 'Write the letter of the correct answer (1 mark each).', [
