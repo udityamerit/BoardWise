@@ -18,12 +18,14 @@ const LS = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
 };
 const subj = k => ALL_SUBJECTS.find(s => s.key === k);
-/* Every visit starts on the Boards page (pick a board, then that board's subjects). `landed` is false until the first screen of a visit has been
-   shown. Switching board reloads the page, so that reload is told (one-shot sessionStorage flag) not to bounce back to the Boards page. */
-let landed = false; try { if (sessionStorage.getItem('bw_picked')) { landed = true; sessionStorage.removeItem('bw_picked'); } } catch (e) {}
+/* A new visit (new tab / fresh sign-in) starts on the Boards page: pick a board, then see that board's subjects. A page refresh must NOT do that, so
+   the "already landed" flag lives in sessionStorage (survives a reload, gone in a new tab and cleared on sign-out). Any other page counts as landed. */
+const LAND = 'bw_landed';
+let landed = false; try { landed = sessionStorage.getItem(LAND) === '1'; } catch (e) {}
+const setLanded = on => { landed = on; try { on ? sessionStorage.setItem(LAND, '1') : sessionStorage.removeItem(LAND); } catch (e) {} };
 function switchBoard(key, hash) {
   if (!BCFG[key] || key === ACTIVE) return false;
-  try { localStorage.setItem('bw_board', JSON.stringify(key)); sessionStorage.setItem('bw_picked', '1'); } catch (e) {}
+  try { localStorage.setItem('bw_board', JSON.stringify(key)); } catch (e) {}
   if (hash != null) location.hash = hash;
   location.reload(); return true;
 }
@@ -417,8 +419,8 @@ function route(keepScroll) {
   if (a === 'about') return viewAbout();
   if (!authed) return viewAuth(a === 'register' || a === 'forgot' ? a : 'login');
   if (a === 'login' || a === 'register' || a === 'forgot') return go('#/');
-  if (a) landed = true;
-  else if (!landed) { landed = true; return go('#/boards'); }
+  if (a) { if (!landed) setLanded(true); }
+  else if (!landed) { setLanded(true); return go('#/boards'); }
   /* a link to something that belongs to another board (a paper, a result, a running test) switches to that board first */
   { const A = (a === 'result' || a === 'report') ? rawAttempts().find(x => x.id === b) : a === 'test' ? active() : null;
     const tg = a === 'paper' ? paperById(decodeURIComponent(b || '')) : a === 'subject' ? subj(b) : A ? paperById(A.paperId) : null;
@@ -1354,7 +1356,7 @@ function renderUserbox() {
 }
 async function doSignOut() {
   if (active() && !confirm('A test is in progress on this device. It stays saved under your account, but the timer keeps running. Sign out anyway?')) return;
-  await AUTH.signOut(); landed = false; nextHash = ''; location.hash = '#/login'; route();
+  await AUTH.signOut(); setLanded(false); nextHash = ''; location.hash = '#/login'; route();
 }
 
 /* ---------- results saved before accounts existed ---------- */
