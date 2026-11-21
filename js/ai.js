@@ -3,8 +3,8 @@
    student is offline, every function here resolves to null and the site keeps using its rule-based checker (js/check.js).
      AIG.enabled()                 -> true when an endpoint is configured
      AIG.grade(items)              -> Promise<{ [qid]: { m, fb, steps, tip, missing, models } } | null>   items: [{ q, answer }]
-     AIG.tutor(ctx)                -> Promise<{ reply } | { error: 'off'|'busy'|'limit'|'signin'|'old'|'net' }>
-                                      ctx: { q, answer, awarded, history:[{role,content}], message }  */
+     AIG.tutor(ctx, onText?)       -> Promise<{ reply } | { error: 'off'|'busy'|'limit'|'signin'|'old'|'net' }>
+                                      ctx: { q, answer, awarded, history:[{role,content}], message }; onText(textSoFar) is called as the reply streams in  */
 (function () {
 'use strict';
 const CFG = Object.assign({}, window.AI_CFG);
@@ -33,6 +33,36 @@ async function callService(path, init, timeout) {
     finally { clearTimeout(timer); }
   }
   return last;
+}
+
+/* Streaming call with a hedged backup. The primary service is tried first; if it has not started answering within HEDGE ms,
+   the next service is started in parallel and whichever starts answering first is used (the other is cancelled). So one slow or
+   down service costs the student a few seconds, not a minute. Resolves to { status, res, ctl }: res is the live Response when ok. */
+const HEDGE = 6000;
+function raceStream(path, init, totalMs) {
+  const now = Date.now(), fresh = u => !(failedAt[u] > now);
+  const order = ENDPOINTS.filter(fresh).concat(ENDPOINTS.filter(u => !fresh(u)));
+  return new Promise(resolve => {
+    let next = 0, pending = 0, done = false, hedge = null, last = { status: 0, res: null };
+    const ctls = [];
+    const finish = v => { if (done) return; done = true; clearTimeout(hedge); ctls.forEach(c => { if (c !== v.ctl) c.abort(); }); resolve(v); };
+    const arm = () => { clearTimeout(hedge); if (!done && next < order.length) hedge = setTimeout(launch, HEDGE); };
+    const settle = () => { pending--; if (done) return; if (next < order.length) launch(); else if (pending === 0) finish(last); };
+    function launch() {
+      if (done || next >= order.length) return;
+      const u = order[next++], ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), totalMs);
+      ctls.push(ctl); pending++; arm();
+      fetch(u + path, Object.assign({}, init, { signal: ctl.signal })).then(r => {
+        clearTimeout(timer);
+        if (r.ok && r.body) return finish({ status: 200, res: r, ctl });
+        last = { status: r.status, res: null };
+        if (r.status >= 500) failedAt[u] = Date.now() + 60000;
+        else if (r.status !== 404) return finish({ status: r.status, res: null, ctl });
+        settle();
+      }).catch(() => { clearTimeout(timer); if (done) return; failedAt[u] = Date.now() + 60000; last = { status: 0, res: null }; settle(); });
+    }
+    if (!order.length) finish(last); else launch();
+  });
 }
 
 const decode = s => s.replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&#(\d+);/g, (_, n) => String.fromCharCode(+n));
@@ -68,14 +98,56 @@ async function grade(list) {
   return Object.keys(out).length ? out : null;
 }
 
+/* Reads the service's event stream ({t:"text"} ... {done:true}) and reports the growing reply through onText. */
+async function readTutorStream(s, onText) {
+  const reader = s.res.body.getReader(), dec = new TextDecoder();
+  let buf = '', acc = '', ended = false, stall = null;
+  const bump = () => { clearTimeout(stall); stall = setTimeout(() => s.ctl.abort(), 25000); };   // silent for 25 s mid-answer: stop waiting
+  try {
+    bump();
+    while (!ended) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bump(); buf += dec.decode(value, { stream: true });
+      let i;
+      while ((i = buf.indexOf('\n\n')) >= 0) {
+        const line = buf.slice(0, i).trim(); buf = buf.slice(i + 2);
+        if (!line.startsWith('data:')) continue;
+        let j; try { j = JSON.parse(line.slice(5)); } catch (e) { continue; }
+        if (j.t) { acc += j.t; try { onText(acc); } catch (e) {} }
+        if (j.done || j.error) { ended = true; break; }
+      }
+    }
+  } catch (e) { /* cut off or stalled: use whatever has arrived */ }
+  finally { clearTimeout(stall); try { s.ctl.abort(); } catch (e) {} }
+  return acc;
+}
+
 /* One tutor turn about one question. Never throws: on trouble it resolves to { error } so the page can show a friendly line. */
-async function tutor(c) {
+async function tutor(c, onText) {
   if (!enabled()) return { error: 'off' };
   const q = c.q, headers = { 'Content-Type': 'application/json' };
   try { const t = window.AUTH && await window.AUTH.idToken(); if (t) headers.Authorization = 'Bearer ' + t; } catch (e) {}
   const opts = q.options ? q.options.map((o, i) => String.fromCharCode(65 + i) + ') ' + text(o)).join('   ') : '';
   const body = { message: String(c.message).slice(0, 700), history: (c.history || []).slice(-8), chapter: q.chapter, marks: q.marks, question: text(q.q), options: opts,
                  model: text(q.solution), answer: String(c.answer == null ? '' : c.answer).slice(0, 2500), awarded: c.awarded };
+  if (typeof onText === 'function' && typeof ReadableStream !== 'undefined') {       // streaming: words appear as they are written
+    body.stream = true;
+    const s = await raceStream('/tutor', { method: 'POST', headers, body: JSON.stringify(body) }, 45000);
+    if (s.res) {
+      if (!/event-stream/.test(s.res.headers.get('content-type') || '')) {          // an older service answered with plain JSON: still fine
+        const j = await s.res.json().catch(() => null);
+        return j && j.reply ? { reply: String(j.reply) } : { error: 'busy' };
+      }
+      const text = (await readTutorStream(s, onText)).trim();
+      if (text) return { reply: text };
+      return { error: 'busy' };
+    }
+    if (s.status === 429) return { error: 'limit' };
+    if (s.status === 401) return { error: 'signin' };
+    if (s.status === 404) return { error: 'old' };
+    return { error: s.status === 0 ? 'net' : 'busy' };
+  }
   const r = await callService('/tutor', { method: 'POST', headers, body: JSON.stringify(body) }, 60000);
   if (r.body && r.body.reply) return { reply: String(r.body.reply) };
   if (r.status === 404) return { error: 'old' };            // every deployed service predates the tutor

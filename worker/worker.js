@@ -4,8 +4,8 @@
    POST /grade   { items: [{ id, question, marks, model, answer }] }   (Authorization: Bearer <Firebase ID token>)
      -> { results: [{ id, marks, feedback, missing }], models: [...], deep: true }
 
-   POST /tutor   { message, history:[{role,content}], question, model, answer, options, chapter, marks, awarded }
-     -> { reply, model }      (same sign-in and origin rules, with its own hourly limit per student)
+   POST /tutor   { stream?: true, message, history:[{role,content}], question, model, answer, options, chapter, marks, awarded }
+     -> { reply, model }, or with stream:true an event stream of {t:"text"} ... {done:true,model}   (same sign-in and origin rules, with its own hourly limit per student)
    GET  /stats   usage counters; only with  Authorization: Bearer <ADMIN_KEY>  (a secret you set yourself)
 
    "Deep agent" = a small pipeline, not one prompt:
@@ -24,7 +24,9 @@
      FIREBASE_PROJECT_ID  project whose sign-in tokens are accepted
      ALLOW_ANON           "1" to also accept students on local-only accounts (IP rate-limited)
      ADMIN_KEY            secret — optional, enables GET /stats
-     TUTOR_EFFORT         thinking depth for tutor replies (default "low" = fast)  */
+     TUTOR_EFFORT         thinking depth for tutor replies (default "low" = fast)
+     TUTOR_MODELS         optional tutor-only model list, fast models first (defaults to DEFAULT_TUTOR_MODELS)
+     TUTOR_FIRST_MS       how long a tutor model may stay silent before the next one is tried (default 9000)  */
 
 /* Providers. A model entry is "provider:model-id"; no prefix means OpenRouter. A provider whose key is not set is skipped. */
 const PROVIDERS = {
@@ -44,6 +46,18 @@ const DEFAULT_MODELS = [          // strongest first; MiniMax (own key), then pa
   'deepseek/deepseek-v4-pro',
   'anthropic/claude-haiku-5.5',
   'qwen/qwen3.8-flash',
+  'nvidia/nemotron-3-ultra-550b-a55b:free',
+  'google/gemma-4-31b-it:free',
+  'openrouter/free'
+];
+/* Tutor chain: the tutor only EXPLAINS a model answer that is already in the prompt, so it does not need a slow reasoning model.
+   Fast models first; the strong grading models stay at the end as a fallback. Override with the TUTOR_MODELS variable. */
+const DEFAULT_TUTOR_MODELS = [
+  'minimax:MiniMax-M3.1-Flash',
+  'anthropic/claude-haiku-5.5',
+  'qwen/qwen3.8-flash',
+  'minimax:MiniMax-M3',
+  'deepseek/deepseek-v4-pro',
   'nvidia/nemotron-3-ultra-550b-a55b:free',
   'google/gemma-4-31b-it:free',
   'openrouter/free'
@@ -216,18 +230,22 @@ function modelList(env) {
   const l = String(env.MODELS || '').split(',').map(s => s.trim()).filter(Boolean);
   return (l.length ? l : DEFAULT_MODELS).filter(m => hasKey(env, m));   // only models whose provider has a key
 }
+function tutorModelList(env) {
+  const l = String(env.TUTOR_MODELS || '').split(',').map(x => x.trim()).filter(Boolean);
+  return (l.length ? l : DEFAULT_TUTOR_MODELS).filter(m => hasKey(env, m));
+}
 async function callModel(env, entry, messages, signal, o) {
   const { provider, model } = spec(entry), P = PROVIDERS[provider]; o = o || {};
   return fetch(P.url, {
     method: 'POST', signal,
     headers: Object.assign({ 'Authorization': 'Bearer ' + P.key(env), 'Content-Type': 'application/json' }, P.headers ? P.headers(env) : {}),
-    body: JSON.stringify(Object.assign({ model, messages, temperature: o.temperature == null ? 0 : o.temperature, max_tokens: o.maxTokens || 9000 }, P.extra(env, o.effort)))
+    body: JSON.stringify(Object.assign({ model, messages, temperature: o.temperature == null ? 0 : o.temperature, max_tokens: o.maxTokens || 9000 }, P.extra(env, o.effort), o.stream ? { stream: true } : {}))
   });
 }
 /* walks the chain until one model returns usable marks. With `avoid` set (the grader's model) the verifier tries a model
    from a different provider first, then a different model, and only then the same one, so the second opinion is independent. */
 async function runChain(env, messages, check, avoid, log, o) {
-  const models = modelList(env), bad = avoid || [], badP = bad.map(m => spec(m).provider);
+  const models = (o && o.models) || modelList(env), bad = avoid || [], badP = bad.map(m => spec(m).provider);
   const tier = m => !bad.length ? 0 : !badP.includes(spec(m).provider) ? 0 : !bad.includes(m) ? 1 : 2;
   const order = [0, 1, 2].flatMap(t => models.filter(m => tier(m) === t));
   for (const model of order) {
@@ -250,6 +268,91 @@ async function runChain(env, messages, check, avoid, log, o) {
     finally { clearTimeout(timer); }
   }
   return null;
+}
+
+/* ---------- streaming tutor ----------
+   Same idea as the chain above, but the reply is passed on piece by piece (small server-sent events) so the student reads the
+   first words after a second or two instead of waiting for the whole answer. A model is only "chosen" once its first real word
+   has arrived; if it fails or stays silent before that, the next model is tried and the student never notices. */
+function thinkStripper() {                       /* removes <think>...</think> from a stream, even when a tag is split across chunks */
+  let buf = '', inThink = false;
+  const OPEN = '<think>', CLOSE = '</think>';
+  return {
+    push(chunk) {
+      buf += chunk; let out = '';
+      for (;;) {
+        if (inThink) {
+          const i = buf.indexOf(CLOSE); if (i < 0) { buf = buf.slice(-CLOSE.length); return out; }
+          buf = buf.slice(i + CLOSE.length); inThink = false;
+        } else {
+          const i = buf.indexOf(OPEN);
+          if (i >= 0) { out += buf.slice(0, i); buf = buf.slice(i + OPEN.length); inThink = true; continue; }
+          let keep = 0;                              /* hold back a possible half-written "<think" at the end */
+          for (let k = Math.min(OPEN.length - 1, buf.length); k > 0; k--) if (OPEN.startsWith(buf.slice(-k))) { keep = k; break; }
+          out += buf.slice(0, buf.length - keep); buf = buf.slice(buf.length - keep); return out;
+        }
+      }
+    },
+    end() { const r = inThink ? '' : buf; buf = ''; return r; }
+  };
+}
+/* reads an OpenAI-style event stream and yields the visible text pieces */
+async function* modelText(reader) {
+  const dec = new TextDecoder(), strip = thinkStripper(); let buf = '';
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    let nl;
+    while ((nl = buf.indexOf('\n')) >= 0) {
+      const line = buf.slice(0, nl).trim(); buf = buf.slice(nl + 1);
+      if (!line.startsWith('data:')) continue;
+      const d = line.slice(5).trim(); if (d === '[DONE]') { const rest = strip.end(); if (rest) yield rest; return; }
+      let j; try { j = JSON.parse(d); } catch (e) { continue; }
+      if (j.error || (j.base_resp && j.base_resp.status_code)) throw new Error('model_error');
+      const c = j.choices && j.choices[0] && j.choices[0].delta && j.choices[0].delta.content;
+      if (c) { const t = strip.push(String(c)); if (t) yield t; }
+    }
+  }
+  const rest = strip.end(); if (rest) yield rest;
+}
+/* tries the tutor models in order; resolves to { model, first, it, ctl, stop } once one has produced its first word, else null */
+async function openTutorStream(env, messages, log) {
+  const firstMs = Number(env.TUTOR_FIRST_MS) || 9000, totalMs = Number(env.TUTOR_TIMEOUT_MS) || 40000;
+  for (const model of tutorModelList(env)) {
+    if ((cool.get(model) || 0) > now()) continue;
+    const ctl = new AbortController(); let timer = setTimeout(() => ctl.abort(), firstMs);
+    try {
+      const r = await callModel(env, model, messages, ctl.signal, { effort: env.TUTOR_EFFORT || 'low', temperature: 0.3, maxTokens: Number(env.TUTOR_MAX_TOKENS) || 2000, stream: true });
+      if (r.status === 429) { cool.set(model, now() + (parseInt(r.headers.get('Retry-After'), 10) || 60) * 1000); log.push(model + ':429'); continue; }
+      if (r.status === 402 || r.status === 401 || r.status === 403) { cool.set(model, now() + 600000); log.push(model + ':' + r.status); continue; }
+      if (r.status === 404 || r.status === 400) { cool.set(model, now() + 1800000); log.push(model + ':' + r.status); continue; }
+      if (!r.ok || !r.body) { cool.set(model, now() + 30000); log.push(model + ':' + r.status); continue; }
+      const it = modelText(r.body.getReader())[Symbol.asyncIterator]();
+      const first = await it.next();               /* waits for the first visible word (or the first-word timeout) */
+      if (first.done || !first.value) { cool.set(model, now() + 20000); log.push(model + ':empty'); ctl.abort(); continue; }
+      clearTimeout(timer); timer = null;
+      const total = setTimeout(() => ctl.abort(), totalMs);
+      return { model, first: first.value, it, ctl, stop: () => clearTimeout(total) };
+    } catch (e) { cool.set(model, now() + 30000); log.push(model + ':' + (e && e.name === 'AbortError' ? 'timeout' : 'fail')); ctl.abort(); }
+    finally { if (timer) clearTimeout(timer); }
+  }
+  return null;
+}
+function tutorEvents(s) {                          /* our own small event stream: {t:"text"} ... {done:true,model} */
+  const enc = new TextEncoder(), send = (c, o) => c.enqueue(enc.encode('data: ' + JSON.stringify(o) + '\n\n'));
+  let sent = 0;
+  return new ReadableStream({
+    start(c) { const t = s.first.slice(0, 2500); sent += t.length; send(c, { t }); },
+    async pull(c) {
+      try {
+        const n = await s.it.next();
+        if (n.done || sent >= 2500) { send(c, { done: true, model: s.model }); s.stop(); c.close(); s.ctl.abort(); return; }
+        const t = n.value.slice(0, 2500 - sent); sent += t.length; send(c, { t });
+      } catch (e) { send(c, { error: 'cut' }); s.stop(); c.close(); }
+    },
+    cancel() { s.stop(); s.ctl.abort(); }
+  });
 }
 
 /* ---------- the agent ---------- */
@@ -324,7 +427,14 @@ export default {
     if (isTutor) {
       const t = sanitizeTutor(body); if (!t) { stat.reject('bad_request'); return json({ error: 'bad_request' }, 400, cors.headers); }
       stat.tutor.requests++;
-      const out = await runChain(env, tutorMessages(t), cleanReply, [], log, { effort: env.TUTOR_EFFORT || 'low', temperature: 0.3, maxTokens: 4000, timeout: Number(env.TUTOR_TIMEOUT_MS) || 40000 });
+      if (body.stream === true) {                  /* streaming: headers go out only once a model has produced its first word */
+        const s = await openTutorStream(env, tutorMessages(t), log);
+        stat.fromLog(log);
+        if (!s) { stat.tutor.failed++; logLine({ evt: 'tutor', ok: false, stream: true, ms: now() - t0, tried: log }); return json({ error: 'ai_unavailable', tried: log }, 503, cors.headers); }
+        stat.tutor.ok++; stat.model(s.model, true); logLine({ evt: 'tutor', ok: true, stream: true, firstWordMs: now() - t0, model: s.model, tried: log });
+        return new Response(tutorEvents(s), { status: 200, headers: Object.assign({ 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no' }, cors.headers) });
+      }
+      const out = await runChain(env, tutorMessages(t), cleanReply, [], log, { models: tutorModelList(env), effort: env.TUTOR_EFFORT || 'low', temperature: 0.3, maxTokens: Number(env.TUTOR_MAX_TOKENS) || 2000, timeout: Number(env.TUTOR_TIMEOUT_MS) || 40000 });
       stat.fromLog(log);
       if (!out) { stat.tutor.failed++; logLine({ evt: 'tutor', ok: false, ms: now() - t0, tried: log }); return json({ error: 'ai_unavailable', tried: log }, 503, cors.headers); }
       stat.tutor.ok++; logLine({ evt: 'tutor', ok: true, ms: now() - t0, model: out.model, tried: log });
@@ -346,4 +456,4 @@ export default {
 /* constant-time comparison for the admin key */
 function sameKey(a, b) { a = String(a); b = String(b); let d = a.length ^ b.length; for (let i = 0; i < Math.max(a.length, b.length); i++) d |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0); return d === 0; }
 
-export const _t = { parseJson, cleanResults, sanitize, sanitizeTutor, cleanReply, tutorMessages, cool, hits, verifyFirebase, examine, stat };
+export const _t = { thinkStripper, modelText, tutorModelList, parseJson, cleanResults, sanitize, sanitizeTutor, cleanReply, tutorMessages, cool, hits, verifyFirebase, examine, stat };

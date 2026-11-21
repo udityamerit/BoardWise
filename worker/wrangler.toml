@@ -23,6 +23,12 @@ OPENROUTER_EFFORT = "medium"
 
 # Thinking depth for AI-tutor replies (POST /tutor): low = fast. Optional.
 # TUTOR_EFFORT = "low"
+# The tutor uses its own, faster model list (it only explains a model answer, so no slow reasoning model is needed).
+# Default: MiniMax-M3.1-Flash, Claude Haiku, Qwen Flash first; the strong grading models are the fallback. Override if you like:
+# TUTOR_MODELS = "minimax:MiniMax-M3.1-Flash,anthropic/claude-haiku-5.5,qwen/qwen3.8-flash,minimax:MiniMax-M3"
+# Seconds-in-ms a tutor model may stay silent before the next one is tried (default 9000), and the reply length cap:
+# TUTOR_FIRST_MS = "9000"
+# TUTOR_MAX_TOKENS = "2000"
 
 # API keys are NOT stored here. Set them once from this folder with:
 #   npx wrangler secret put MINIMAX_API_KEY

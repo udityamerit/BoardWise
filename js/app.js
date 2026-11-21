@@ -907,7 +907,7 @@ function viewResult(id) {
     if (!c.open) return `<div class="tutor"><button class="btn sm tbtn" data-topen="${esc(q.id)}">💬 Ask the AI tutor about this question</button></div>`;
     const chips = c.msgs.length ? '' : `<div class="tchips">${[['Explain this step by step', 'Explain this step by step'], info.attempted ? ['Where did I go wrong?', 'Where exactly did I go wrong, and what should I change?'] : null, ['Give me a similar question', 'Give me a similar practice question to try'], ['समझाओ (हिंदी)', 'इसे सरल हिंदी में समझाओ']].filter(Boolean).map(x => `<button class="chip tchip" data-tsend="${esc(x[1])}" data-tq="${esc(q.id)}">${esc(x[0])}</button>`).join('')}</div>`;
     return `<div class="tutor open"><div class="thead"><b>💬 AI tutor</b><button class="btn sm" data-tclose="${esc(q.id)}" aria-label="Close tutor">✕</button></div>
-      <div class="tmsgs" aria-live="polite">${c.msgs.map(m => `<div class="tmsg ${m.role}">${m.role === 'user' ? esc(m.content) : mdLite(m.content)}</div>`).join('')}${c.busy ? '<div class="tmsg assistant"><span class="spin"></span> thinking…</div>' : ''}${c.err ? `<div class="tmsg err">${esc(c.err)}</div>` : ''}</div>
+      <div class="tmsgs" aria-live="polite">${c.msgs.map(m => `<div class="tmsg ${m.role}">${m.role === 'user' ? esc(m.content) : mdLite(m.content)}</div>`).join('')}${c.busy ? (c.live ? `<div class="tmsg assistant live">${mdLite(c.live)}</div>` : '<div class="tmsg assistant"><span class="spin"></span> thinking…</div>') : ''}${c.err ? `<div class="tmsg err">${esc(c.err)}</div>` : ''}</div>
       ${chips}
       <form class="tform" data-tform="${esc(q.id)}"><input type="text" maxlength="700" placeholder="Ask anything about this question…" value="${esc(c.draft)}" ${c.busy ? 'disabled' : ''} aria-label="Your question for the tutor"><button class="btn pri sm" ${c.busy ? 'disabled' : ''}>Ask</button></form>
       <div class="small muted">AI can make mistakes — check with your textbook or teacher.</div></div>`;
@@ -923,8 +923,15 @@ function viewResult(id) {
     if (!text || c.busy || !info) return;
     const history = c.msgs.slice(-8).map(m => ({ role: m.role, content: m.content }));
     c.msgs.push({ role: 'user', content: text.slice(0, 700) }); c.draft = ''; c.err = ''; c.busy = true; paintTutor(qid);
-    let r; try { r = await AIG.tutor({ q: info.q, answer: info.ans, awarded: info.got, history, message: text }); } catch (e) { r = { error: 'net' }; }
-    c.busy = false;
+    c.live = '';
+    const onText = acc => {                       /* words arrive as they are written: update just the growing bubble, not the whole panel */
+      const first = !c.live; c.live = acc;
+      if (first) return paintTutor(qid);
+      const host = document.querySelector(`[data-thost="${CSS.escape(qid)}"]`), el = host && host.querySelector('.tmsg.live'); if (!el) return;
+      el.innerHTML = mdLite(acc); const box = host.querySelector('.tmsgs'); if (box) box.scrollTop = box.scrollHeight;
+    };
+    let r; try { r = await AIG.tutor({ q: info.q, answer: info.ans, awarded: info.got, history, message: text }, onText); } catch (e) { r = { error: 'net' }; }
+    c.busy = false; c.live = '';
     const code = r && r.error;
     if (r && r.reply) c.msgs.push({ role: 'assistant', content: r.reply });
     else if (code === 'limit' || code === 'signin' || code === 'off') { c.err = TERR[code]; c.msgs.pop(); c.draft = text; }
