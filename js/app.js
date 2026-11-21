@@ -164,15 +164,33 @@ const figHtml = (q, solved) => { try { return window.FIG ? window.FIG.forQuestio
 
 /* ---------- retake variants ----------
    A student who retakes a mock should be tested on the subject, not on remembering last time's answer key.
-     orig     the paper exactly as written
-     shuffle  same questions, new order inside each section, and the options of every MCQ re-ordered
-     fresh    as shuffle, but each question is swapped for an unseen question of the same section, type and marks from
+     orig     the paper exactly as written (a student's first attempt at a paper; the only option they see)
+     shuffle  same questions, new order inside each section, MCQ options re-ordered (internal fallback when no unseen question exists)
+     fresh    (every retake, chosen automatically)  as shuffle, but each question is swapped for an unseen question of the same section, type and marks from
               another mock of the same subject (same chapter first). Sections built on a passage are never swapped.
    An attempt stores what it needs to rebuild itself: A.qids (in test order; a question from another paper is
    "<paperId>::<id>"), A.slots (which section of this paper such a question fills) and A.opt ({id: [original index of
    each shown option]}). qsOf(A) turns that back into questions with options and the right answer already re-ordered,
    so marking, the review and the AI examiner need no special cases. */
 const FSEP = '::';
+/* ---------- difficulty labels ----------
+   Every question is Easy or Medium (the papers are written for board-exam practice, not for toppers' puzzles). A question can say it
+   itself with `difficulty: 'easy' | 'medium'`; otherwise it is worked out from what answering it takes: marks, question type and the
+   length of the model answer (a long model answer = more steps). Direct recall / one-step = Easy; multi-step or explained = Medium. */
+const DIFF_RANK = { easy: 0, medium: 1 };
+const plainLen = h => String(h || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().length;
+function diffOf(q) {
+  if (q.difficulty === 'easy' || q.difficulty === 'medium') return q.difficulty;
+  const sl = plainLen(q.solution);
+  if (q.marks >= 3) return 'medium';
+  if (q.marks === 2) return q.type === 'mcq' || sl >= 70 ? 'medium' : 'easy';
+  return sl >= 90 ? 'medium' : 'easy';
+}
+const DIFF_TIP = { easy: 'Easy: direct recall or a single step. Keep it quick and bank the marks.', medium: 'Medium: needs a few steps or a short explanation. Give it proper time.' };
+const diffChip = (q, mins) => { const d = diffOf(q); return `<span class="chip ${d === 'easy' ? 'ok' : 'warn'}" title="${DIFF_TIP[d]}">${d === 'easy' ? 'Easy' : 'Medium'}${mins ? ' · ~' + mins : ''}</span>`; };
+const diffMix = qs => { let e = 0, m = 0; qs.forEach(q => { if (diffOf(q) === 'easy') e++; else m++; }); return { easy: e, medium: m }; };
+const diffMixHtml = qs => { const x = diffMix(qs); return `<span class="chip ok">${x.easy} Easy</span> <span class="chip warn">${x.medium} Medium</span>`; };
+const minLabel = m => { m = Math.max(0.5, Math.round(m * 2) / 2); return (m % 1 ? m.toFixed(1) : m) + ' min'; };
 const UNSAFE_OPT = /\b(above|below|both|neither|none|all of|any of|all the|either|statements?|assertion|reason)\b|\(\s*(?:[a-d]|i{1,3}|iv|[1-4])\s*\)|\b[a-d]\s*(?:and|&)\s*[a-d]\b|^\s*(?:only\s+)?(?:i{1,3}|iv)\s*(?:,|and\b|&|only\b|$)/i;
 const UNSAFE_Q = /\bstatements?\b|\bassertion\b|\(\s*(?:i{1,3}|iv)\s*\)|\bi\s*,\s*ii\b|\bpairs?\b.*\bmatch|\bmatch\b.*\b(column|following)/i;
 const shuffleArr = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
@@ -231,7 +249,8 @@ function makeVariant(P, mode, kind) {
     if (kind === 'fresh' && !g.sec.passage) items = items.map(it => {
       const cands = freshPool(P, it.q).filter(c => !used.has(tkey(c.q)));
       if (!cands.length) return it;
-      const score = c => (seen.has(c.pid + FSEP + c.q.id) ? 2 : 0) + (c.q.chapter === it.q.chapter ? 0 : 1);
+      /* unseen first, then keep the original's difficulty (never swap a Medium for an Easy if a Medium exists), then same chapter */
+      const dOrig = DIFF_RANK[diffOf(it.q)], score = c => (seen.has(c.pid + FSEP + c.q.id) ? 4 : 0) + (DIFF_RANK[diffOf(c.q)] === dOrig ? 0 : DIFF_RANK[diffOf(c.q)] < dOrig ? 2 : 1) + (c.q.chapter === it.q.chapter ? 0 : 1);
       const best = Math.min(...cands.map(score)), c = shuffleArr(cands.filter(x => score(x) === best))[0];
       used.add(tkey(c.q)); swapped++;
       const id = c.pid + FSEP + c.q.id; slots[id] = g.sec.id;
@@ -567,7 +586,7 @@ function viewInstr(id) {
   const modes = [['all', 'Full paper', all]];
   if (hasParts(P)) { modes.push(['part1', 'Part 1 only', pick(P, 'part1')], ['part2', 'Part 2 only', pick(P, 'part2')]); }
   P.sections.forEach(sec => modes.push(['sec:' + sec.id, sec.title, pick(P, 'sec:' + sec.id)]));
-  const taken = rawAttempts().some(a => a.paperId === P.id), fresh = freshCount(P, 'all'), dflt = taken ? 'shuffle' : 'orig';
+  const taken = rawAttempts().some(a => a.paperId === P.id), fresh = freshCount(P, 'all');
   const hasChoice = P.sections.some(s => s.attempt && s.attempt < s.questions.length);
   app.innerHTML = `
   <div class="crumbs"><a href="#/">Subjects</a> › <a href="#/subject/${S.key}">${esc(S.name)}</a> › ${esc(P.title)}</div>
@@ -587,16 +606,16 @@ function viewInstr(id) {
     </ul>
     ${P.kind === 'pyq' ? `<div class="notice"><b>Board ${esc(P.year)} paper — third-party copy.</b> ${P.note || 'Typed in from a public transcription; not checked against the board PDF.'}</div>`
       : `<div class="notice"><b>Mock test.</b> ${P.note || 'Written from the textbook chapters in the board paper\'s format. Not an actual past paper.'}</div>`}
-    <h3>Question set</h3>
-    <div class="qsets">${[['orig', 'Original', 'The paper exactly as written.', true],
-      ['shuffle', 'Shuffled', 'Same questions in a new order, with the answer options re-arranged — so you cannot just remember the answer key.', true],
-      ['fresh', 'Fresh mix', 'Different questions of the same type and chapter, taken from the other mocks you have not seen yet.', fresh > 0]].map(o => `<label class="qset ${o[3] ? '' : 'off'}"><input type="radio" name="qset" value="${o[0]}" ${o[0] === dflt ? 'checked' : ''} ${o[3] ? '' : 'disabled'}><span><b>${o[1]}</b>${o[0] === 'fresh' && o[3] ? ` <span class="small muted">(${fresh} of ${all.length} questions change)</span>` : ''}<br><span class="small muted">${o[3] ? o[2] : 'Not available for this paper.'}</span></span></label>`).join('')}</div>
+    <h3>Your questions</h3>
+    <div class="notice qinfo">${taken
+      ? `<b>Retake — a fresh mix.</b> You have taken this paper before, so you get <b>new questions</b>: ${fresh ? `${fresh} of ${all.length} questions are replaced` : 'the questions are re-ordered and the options re-arranged'} with ones you have not seen (from the other ${esc(S.name)} mocks, same type, marks and chapter first), so you are tested on the subject, not on remembering the answers.`
+      : '<b>First attempt.</b> You get this paper exactly as written. When you retake it, every question you have seen is swapped for a new one.'}
+      <div style="margin-top:8px"><b>Difficulty:</b> ${diffMixHtml(all)} <span class="small muted">Every question is labelled <b>Easy</b> (quick, direct) or <b>Medium</b> (a few steps) with a suggested time, so you can plan your minutes.</span></div></div>
     <h3>Choose how to attempt</h3>
     <div class="modes">${modes.map(m => `<button class="btn ${m[0] === 'all' ? 'pri' : ''}" data-mode="${esc(m[0])}">${esc(m[1])} · ${marksOf(m[2])} marks · ${minutesFor(P, m[2])} min</button>`).join('')}</div>
   </div>`;
   app.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => {
-    const sel = app.querySelector('input[name="qset"]:checked');
-    startAttempt(P, b.dataset.mode, sel ? sel.value : 'orig');
+    startAttempt(P, b.dataset.mode, taken ? 'fresh' : 'orig');
   });
 }
 
@@ -609,9 +628,10 @@ function viewTest() {
   const P = paperById(A.paperId);
   const qs = qsOf(A);
   const groups = groupBySec(qs);
+  const perMark = Math.max(0.5, (A.endsAt - A.startedAt) / 60000 / Math.max(1, marksOf(qs)));   // minutes the paper's clock gives per mark
   const grp = id => groups.find(g => g.sec.id === id);
   app.innerHTML = `
-  <div class="tbar"><div><h2>${esc(P.title)}</h2><span class="muted small">${esc(modeLabel(P, A.mode))} · ${marksOf(qs)} marks${A.variant ? ` · <b>${esc(variantLabel(A))}</b>` : ''}</span></div>
+  <div class="tbar"><div><h2>${esc(P.title)}</h2><span class="muted small">${esc(modeLabel(P, A.mode))} · ${marksOf(qs)} marks · ${diffMix(qs).easy} Easy + ${diffMix(qs).medium} Medium${A.variant ? ` · <b>${esc(variantLabel(A))}</b>` : ''}</span></div>
     <div style="display:flex;gap:10px;align-items:center"><span class="timer" id="timer">--:--:--</span><button class="btn pri" id="submit">Submit test</button></div></div>
   <div class="tlayout"><div class="card" id="qbox"></div>
     <aside class="card pal"><h3>Question palette</h3><div id="palette"></div>
@@ -735,7 +755,7 @@ function viewTest() {
     else if (q.type === 'num') input = `<input class="ans" id="ans" autocomplete="off" placeholder="${esc(q.hint || 'Type your answer')}" value="${esc(v || '')}">`;
     else input = `<textarea class="ans" id="ans" placeholder="Write your answer here, as you would in the answer book…">${esc(v || '')}</textarea>`;
     document.getElementById('qbox').innerHTML = `
-      <div class="qhead"><div><span class="chip">Q${A.cur + 1} of ${qs.length}</span> <span class="chip gray">${q.marks} mark${q.marks > 1 ? 's' : ''}</span> <span class="chip gray" id="qtime"></span></div>
+      <div class="qhead"><div><span class="chip">Q${A.cur + 1} of ${qs.length}</span> <span class="chip gray">${q.marks} mark${q.marks > 1 ? 's' : ''}</span> ${diffChip(q, minLabel(q.marks * perMark))} <span class="chip gray" id="qtime"></span></div>
         <button class="btn sm ${A.flags[q.id] ? 'danger' : ''}" id="flag">${A.flags[q.id] ? '⚑ Flagged' : '⚐ Flag for review'}</button></div>
       <div class="secinfo"><b>${esc(q.sec.title)}</b>${n < g.qs.length ? ` — <b>Attempt any ${n} of ${g.qs.length}</b>` : ''}${q.sec.instruction ? ' — ' + esc(q.sec.instruction) : ''}
         <div style="margin-top:6px"><span id="secstat" class="chip gray"></span></div>${q.sec.passage ? `<div class="pass">${q.sec.passage}</div>` : ''}</div>
@@ -843,7 +863,7 @@ function viewResult(id) {
       <div class="card"><h3>Section-wise</h3><table>${Object.entries(r.secs).map(([k, v]) => `<tr><td>${esc(k)}</td><td class="nowrap">${fmt(v.got)} / ${v.tot}</td><td>${bar(v.got, v.tot)}</td></tr>`).join('')}</table></div>
       <div class="card"><h3>Chapter-wise (weakest first)</h3><table>${Object.entries(r.chaps).sort((a, b) => a[1].got / a[1].tot - b[1].got / b[1].tot).map(([k, v]) => `<tr><td>${esc(k)}</td><td class="nowrap">${fmt(v.got)} / ${v.tot}</td><td>${bar(v.got, v.tot)}</td></tr>`).join('')}</table></div>
     </div>
-    <div style="margin:16px 0;display:flex;gap:8px;flex-wrap:wrap"><a class="btn pri" href="#/report/${A.id}">🖨 Report card (print / PDF)</a>${P.kind === 'practice' ? `<button class="btn" data-practice="${esc((A.variant && A.variant.chapters || []).join('|'))}" title="A new set of questions from the same chapters">↻ Practice again</button>` : `<button class="btn" data-retake="shuffle" title="Same questions, new order and re-arranged options">↻ Retake (shuffled)</button>${freshCount(P, A.mode) ? '<button class="btn" data-retake="fresh" title="Different questions of the same type, from other mocks">✨ Retake (fresh mix)</button>' : ''}${weakChaps.length ? `<button class="btn" data-practice="${esc(weakChaps.join('|'))}" title="A short drill on the chapters you lost most marks in">🎯 Practice weak chapters</button>` : ''}`}<button class="btn" data-go="#/progress">My progress</button><button class="btn" data-go="#/history">All my results</button></div>
+    <div style="margin:16px 0;display:flex;gap:8px;flex-wrap:wrap"><a class="btn pri" href="#/report/${A.id}">🖨 Report card (print / PDF)</a>${P.kind === 'practice' ? `<button class="btn" data-practice="${esc((A.variant && A.variant.chapters || []).join('|'))}" title="A new set of questions from the same chapters">↻ Practice again</button>` : `<button class="btn" data-retake="fresh" title="A fresh mix: new questions you have not seen, from the other mocks of this subject">↻ Retake with new questions</button>${weakChaps.length ? `<button class="btn" data-practice="${esc(weakChaps.join('|'))}" title="A short drill on the chapters you lost most marks in">🎯 Practice weak chapters</button>` : ''}`}<button class="btn" data-go="#/progress">My progress</button><button class="btn" data-go="#/history">All my results</button></div>
     <div class="rvhead"><h2 style="margin:0">Answer review &amp; worked solutions</h2><button class="btn sm noprint" id="printrev">🖨 Print review with solutions</button></div>
     <div class="filters">${[['all', 'All'], ['wrong', 'Incorrect'], ['skip', 'Not attempted'], ['self', 'Written answers'], ['correct', 'Correct']].map(f => `<button class="btn sm ${filter === f[0] ? 'pri' : ''}" data-f="${f[0]}">${f[1]}</button>`).join('')}</div>`;
     document.querySelectorAll('#sum [data-go]').forEach(b => b.onclick = () => go(b.dataset.go));
@@ -927,7 +947,7 @@ function viewResult(id) {
       const extra = !counted ? (st === 'skip' ? '<span class="chip gray" title="This section only asks for some of its questions, and you answered enough others">Optional — you did not need this one</span>' : '<span class="chip gray">Extra answer — not counted</span>') : '';
       const stLabel = st === 'self' ? (msrc === 'ai' ? 'AI-marked' : msrc === 'auto' ? 'Auto-checked' : msrc === 'manual' ? 'Self-marked' : 'Needs your marks') : st === 'skip' ? (counted ? 'Not attempted' : 'Skipped') : st;
       const stCls = st === 'correct' ? 'ok' : st === 'wrong' ? 'bad' : st === 'self' && msrc ? (got >= q.marks ? 'ok' : got > 0 ? 'warn' : 'bad') : 'gray';
-      return `<div class="card rev ${st} ${counted ? '' : 'extra'}"><div class="qhead"><div><span class="chip">Q${n}</span> <span class="chip gray">${esc(q.sec.title)}</span> <span class="chip gray">${esc(q.chapter || '')}</span> ${src}${r.tracked ? ` <span class="chip gray" title="Time you spent on this question">⏱ ${dur(t)}</span>` : ''}${chg ? ` <span class="chip gray" title="Times you changed your answer">changed ${chg}×</span>` : ''}</div>
+      return `<div class="card rev ${st} ${counted ? '' : 'extra'}"><div class="qhead"><div><span class="chip">Q${n}</span> <span class="chip gray">${esc(q.sec.title)}</span> <span class="chip gray">${esc(q.chapter || '')}</span> ${diffChip(q)} ${src}${r.tracked ? ` <span class="chip gray" title="Time you spent on this question">⏱ ${dur(t)}</span>` : ''}${chg ? ` <span class="chip gray" title="Times you changed your answer">changed ${chg}×</span>` : ''}</div>
         <div>${extra} <span class="chip ${stCls}">${stLabel}</span> <b>${counted ? fmt(got) : '–'} / ${q.marks}</b></div></div>
         <div class="qtext">${q.q}</div>${figHtml(q, true)}${body}${mark}
         ${ai && !manual && (ai.fb || (ai.missing || []).length || (ai.steps || []).length) ? `<div class="aifb">${ai.fb ? `<div>${esc(ai.fb)}</div>` : ''}${(ai.steps || []).length ? `<div class="aisteps"><b>How to get full marks, step by step</b><ol>${ai.steps.map(x => `<li>${esc(x)}</li>`).join('')}</ol></div>` : ''}${(ai.missing || []).length ? `<div class="small muted">Not covered: ${ai.missing.map(esc).join('; ')}</div>` : ''}${ai.tip ? `<div class="aitip">💡 ${esc(ai.tip)}</div>` : ''}</div>` : ''}

@@ -338,11 +338,7 @@ body.testing .userbox{display:none}
 @media print{#tip{display:none}.tchart svg.trend{max-width:100%}}
 
 /* ---- question-set choice (original / shuffled / fresh mix) ---- */
-.qsets{display:grid;gap:8px;margin:6px 0 14px}
-.qset{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:12px;padding:10px 12px;cursor:pointer;background:#fff}
-.qset input{margin-top:4px;accent-color:var(--brand)}
-.qset:has(input:checked){border-color:var(--brand);background:var(--brand-l)}
-.qset.off{opacity:.55;cursor:not-allowed}
+.qinfo{margin:6px 0 14px}
 
 /* ---------- figures drawn from the question (js/figures.js) ---------- */
 .fig{margin:12px 0;text-align:center}
