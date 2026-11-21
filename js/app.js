@@ -905,8 +905,52 @@ function viewResult(id) {
   const chats = new Map(), tinfo = new Map();
   const TERR = { off: 'The AI tutor is not switched on for this site.', old: 'The AI tutor is not live yet on the server — the site owner needs to redeploy the Worker. Everything else works.', busy: 'The tutor is busy right now. Please try again in a minute.', limit: 'You have asked a lot of questions this hour — take a short break and try again.', signin: 'Please sign in to use the AI tutor.', net: 'Could not reach the tutor. Check your internet and try again.' };
   const chatOf = id => { let c = chats.get(id); if (!c) { c = { open: false, msgs: [], busy: false, err: '', draft: '' }; chats.set(id, c); } return c; };
-  /* tiny safe markdown: escape first, then **bold**, `code`, line breaks and numbered lines */
-  const mdLite = t => esc(t).replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>').replace(/`([^`\n]+)`/g, '<code>$1</code>').replace(/\n/g, '<br>');
+  /* Small safe markdown renderer for the tutor: everything is HTML-escaped first, then headings (#..######), **bold**, *italic*, `code`,
+     ``` code blocks, bullet / numbered lists, > quotes, --- rules, pipe tables and paragraphs are turned into tags. Currency signs (₹ $) and
+     all other symbols are left exactly as written. */
+  const mdInline = s => {
+    const codes = []; let h = esc(s).replace(/`([^`\n]+)`/g, (m, c) => '\u0000' + (codes.push(c) - 1) + '\u0000');
+    h = h.replace(/\*\*([^*\n]+?)\*\*/g, '<b>$1</b>').replace(/__([^_\n]+?)__/g, '<b>$1</b>').replace(/(^|[^*\w])\*([^*\s][^*\n]*?)\*(?!\*)/g, '$1<i>$2</i>').replace(/~~([^~\n]+?)~~/g, '<s>$1</s>');
+    return h.replace(/\u0000(\d+)\u0000/g, (m, i) => '<code>' + codes[+i] + '</code>');
+  };
+  function mdLite(t) {
+    const L = String(t == null ? '' : t).replace(/\r/g, '').split('\n'), out = [];
+    const HR = /^\s*([-*_])(\s*\1){2,}\s*$/, HD = /^\s{0,3}(#{1,6})\s+(.*?)\s*#*\s*$/, LI = /^(\s*)([-*+•]|\d+[.)])\s+(.*)$/, BQ = /^\s*>\s?(.*)$/, TS = /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/;
+    const cells = r => r.trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim());
+    const starts = (l, n) => HR.test(l) || HD.test(l) || LI.test(l) || BQ.test(l) || /^\s*```/.test(l) || (l.includes('|') && n != null && TS.test(n));
+    for (let i = 0; i < L.length;) {
+      const l = L[i];
+      if (!l.trim()) { i++; continue; }
+      if (/^\s*```/.test(l)) { const b = []; i++; while (i < L.length && !/^\s*```/.test(L[i])) b.push(L[i++]); i++; out.push('<pre><code>' + esc(b.join('\n')) + '</code></pre>'); continue; }
+      let m = HD.exec(l);
+      if (m) { out.push('<div class="mdh mdh' + Math.min(m[1].length, 4) + '">' + mdInline(m[2]) + '</div>'); i++; continue; }
+      if (l.includes('|') && i + 1 < L.length && TS.test(L[i + 1]) && !HR.test(l)) {
+        const head = cells(l); i += 2; const rows = [];
+        while (i < L.length && L[i].includes('|') && L[i].trim()) rows.push(cells(L[i++]));
+        out.push('<div class="mdtw"><table class="mdt"><tr>' + head.map(c => '<th>' + mdInline(c) + '</th>').join('') + '</tr>' + rows.map(r => '<tr>' + r.map(c => '<td>' + mdInline(c) + '</td>').join('') + '</tr>').join('') + '</table></div>'); continue;
+      }
+      if (HR.test(l)) { out.push('<hr>'); i++; continue; }
+      if (BQ.test(l)) { const b = []; while (i < L.length && BQ.test(L[i])) b.push(mdInline(BQ.exec(L[i++])[1])); out.push('<blockquote>' + b.join('<br>') + '</blockquote>'); continue; }
+      m = LI.exec(l);
+      if (m) {
+        const ord = /\d/.test(m[2]), items = [];
+        while (i < L.length) {
+          const x = LI.exec(L[i]);
+          if (x && /\d/.test(x[2]) === ord) { items.push({ ind: x[1].length, h: mdInline(x[3]) }); i++; }
+          else if (x) { break; }
+          else if (L[i].trim() && /^\s{2,}\S/.test(L[i]) && items.length && !starts(L[i])) { items[items.length - 1].h += '<br>' + mdInline(L[i].trim()); i++; }
+          else if (!L[i].trim() && i + 1 < L.length) { const nx = LI.exec(L[i + 1]); if (nx && /\d/.test(nx[2]) === ord) i++; else break; }
+          else break;
+        }
+        const tag = ord ? 'ol' : 'ul', start = ord ? parseInt(m[2], 10) : 1;
+        out.push('<' + tag + (ord && start > 1 ? ' start="' + start + '"' : '') + '>' + items.map(x => '<li' + (x.ind >= 2 ? ' class="sub"' : '') + '>' + x.h + '</li>').join('') + '</' + tag + '>'); continue;
+      }
+      const p = [];
+      while (i < L.length && L[i].trim() && (p.length === 0 || !starts(L[i], L[i + 1]))) p.push(mdInline(L[i++]));
+      out.push('<p>' + p.join('<br>') + '</p>');
+    }
+    return out.join('');
+  }
   function tutorHtml(q) {
     if (!window.AIG || !AIG.enabled()) return '';
     const c = chatOf(q.id), info = tinfo.get(q.id) || {};
