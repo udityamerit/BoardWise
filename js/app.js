@@ -810,6 +810,13 @@ function viewTest() {
     flush = () => { const a = document.getElementById('ans'); if (a && !done && qs[A.cur] === q) setV(a.value); };
     /* phone keyboards (autocorrect, voice, swipe) do not always fire 'input' for the last word: also save on change / blur / composition end */
     if (ans) ['input', 'change', 'blur', 'compositionend', 'keyup'].forEach(ev => ans.addEventListener(ev, () => setV(ans.value)));
+    /* Answers must be typed by the student: pasting and dropping text into the answer box is blocked, so what is stored,
+       marked and printed is exactly what they wrote. (Typing, voice typing and the keyboard's own suggestions still work.) */
+    if (ans && q.type !== 'mcq') {
+      const block = e => e.preventDefault();
+      ['paste', 'drop', 'dragover'].forEach(ev => ans.addEventListener(ev, block));
+      ans.addEventListener('beforeinput', e => { if (/^insertFrom(Paste|Drop|Yank)/.test(e.inputType)) block(e); });
+    }
     document.getElementById('flag').onclick = () => { A.flags[q.id] = !A.flags[q.id]; if (!A.flags[q.id]) delete A.flags[q.id]; save(); draw(); };
     document.getElementById('prev').onclick = () => nav(A.cur - 1);
     document.getElementById('next').onclick = () => nav(A.cur + 1);
