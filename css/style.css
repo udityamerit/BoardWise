@@ -272,6 +272,9 @@ body.testing .userbox{display:none}
 .qtools .saved{margin-left:auto;color:var(--ok)}
 .photo{margin:10px 0 0;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .photo .photobtn{cursor:pointer}
+.photocam{width:100%;max-width:520px}
+.photocam video{width:100%;border-radius:12px;background:#111;display:block;margin-bottom:8px}
+.photocam .row{display:flex;gap:8px;margin-top:8px}
 .photoreview{width:100%;border:1.5px dashed var(--brand);border-radius:12px;padding:12px;background:#faf8ff}
 .photoreview textarea.ans{margin:8px 0;min-height:130px}
 .photoreview .row{display:flex;gap:8px}

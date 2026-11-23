@@ -783,9 +783,38 @@ function viewTest() {
     const box = document.getElementById('photo'); if (!box || !ans || !window.AIG || !AIG.photoReady) return;
     const still = () => qs[A.cur] === q && document.getElementById('photo') === box && !done;
     let busy = false;
+    /* Two ways in: "Take a photo" (the phone's camera app opens directly; on a computer a live camera preview opens here) and "Upload a photo". */
+    const touch = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches);
     function idle(msg, ok) {
-      box.innerHTML = `<label class="btn sm photobtn">📷 Wrote it on paper? Add a photo<input type="file" accept="image/*" hidden id="photofile"></label> <span class="small ${ok ? 'saved' : 'muted'}">${esc(msg || 'We read your handwriting into text. You check it before it is used.')}</span>`;
-      box.querySelector('#photofile').onchange = e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) run(f); };
+      box.innerHTML = `<span class="small muted photohint">Wrote it on paper?</span>
+        <label class="btn sm photobtn" id="phcamlbl">📷 Take a photo${touch ? '<input type="file" accept="image/*" capture="environment" hidden id="phcam">' : ''}</label>
+        <label class="btn sm photobtn">🖼 Upload a photo<input type="file" accept="image/*" hidden id="photofile"></label>
+        <span class="small ${ok ? 'saved' : 'muted'}">${esc(msg || 'We read your handwriting into text. You check it before it is used.')}</span>`;
+      const pick = e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) run(f); };
+      box.querySelector('#photofile').onchange = pick;
+      if (touch) box.querySelector('#phcam').onchange = pick;
+      else box.querySelector('#phcamlbl').onclick = e => { e.preventDefault(); camera(); };
+    }
+    async function camera() {
+      if (busy) return;
+      if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) return idle('This browser cannot open the camera here. Use "Upload a photo" instead.');
+      let stream;
+      try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1440 } }, audio: false }); }
+      catch (e) { return idle(e && e.name === 'NotAllowedError' ? 'Camera permission was blocked. Allow the camera for this site, or use "Upload a photo".' : 'No camera was found. Use "Upload a photo" instead.'); }
+      if (!still()) { stream.getTracks().forEach(t => t.stop()); return; }
+      box.innerHTML = `<div class="photocam"><video id="phvid" autoplay playsinline muted></video>
+        <div class="small muted">Hold the page flat, in good light, so the writing fills the picture.</div>
+        <div class="row"><button class="btn sm pri" id="phsnap">📸 Capture</button> <button class="btn sm" id="phstop">Cancel</button></div></div>`;
+      const v = box.querySelector('#phvid'); v.srcObject = stream;
+      const stop = () => { clearInterval(watch); stream.getTracks().forEach(t => t.stop()); };
+      const watch = setInterval(() => { if (!v.isConnected) stop(); }, 700);        // the student moved on to another question: release the camera
+      box.querySelector('#phstop').onclick = () => { stop(); idle(); };
+      box.querySelector('#phsnap').onclick = () => {
+        if (!v.videoWidth) return;
+        const c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight; c.getContext('2d').drawImage(v, 0, 0);
+        stop();
+        c.toBlob(b => { if (!b) return idle(PHOTO_MSG.image); run(new File([b], 'camera.jpg', { type: 'image/jpeg' })); }, 'image/jpeg', 0.92);
+      };
     }
     async function run(f) {
       if (busy) return; busy = true;
