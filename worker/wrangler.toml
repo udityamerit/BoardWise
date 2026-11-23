@@ -9,7 +9,10 @@ ALLOWED_ORIGINS = "https://udityamerit.github.io,http://localhost"
 FIREBASE_PROJECT_ID = "ssc-board-prep"
 # "1" also lets students on local-only accounts use it (rate-limited per IP). Keep "0" once Firebase sign-in is live.
 ALLOW_ANON = "0"
-# "1" = grader + verifier (deep agent). "0" = grader only (half the calls).
+# "1" = grader + verifier on every answer (deep agent). "0" = grader only (half the calls).
+# "auto" = the verifier only re-checks answers that are not obviously settled (partial marks, long zero-mark answers, multi-mark
+#          full marks) and trusts a clear full mark on a 1-2 mark question. Cheaper and faster, but measure it before switching:
+#          node tools/eval-grader.mjs --local --compare 1,auto,0
 DEEP = "1"
 # Strongest first. When one is rate-limited / out of tokens or credit / failing, the next one is used automatically.
 # "minimax:<id>" uses your MiniMax key; ids without a prefix go through OpenRouter (only if that key is set).
@@ -29,6 +32,18 @@ OPENROUTER_EFFORT = "medium"
 # Seconds-in-ms a tutor model may stay silent before the next one is tried (default 9000), and the reply length cap:
 # TUTOR_FIRST_MS = "9000"
 # TUTOR_MAX_TOKENS = "2000"
+
+# Shared rate limiter (optional). Without it, the per-hour caps are counted per Worker instance, so a determined client can get
+# past them by landing on a fresh instance. To make them exact across all instances, uncomment BOTH blocks and redeploy
+# (Durable Objects with SQLite storage are available on the free plan). Nothing else changes; if the object is ever unreachable,
+# the Worker quietly falls back to the per-instance counters so students are never blocked.
+# [[durable_objects.bindings]]
+# name = "LIMITER"
+# class_name = "Limiter"
+#
+# [[migrations]]
+# tag = "v1"
+# new_sqlite_classes = ["Limiter"]
 
 # API keys are NOT stored here. Set them once from this folder with:
 #   npx wrangler secret put MINIMAX_API_KEY

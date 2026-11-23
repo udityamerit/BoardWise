@@ -2,7 +2,12 @@
    and switches between models on its own. Students never enter a key. If the service is not set up, is down, or the
    student is offline, every function here resolves to null and the site keeps using its rule-based checker (js/check.js).
      AIG.enabled()                 -> true when an endpoint is configured
-     AIG.grade(items)              -> Promise<{ [qid]: { m, fb, steps, tip, missing, models } } | null>   items: [{ q, answer }]
+     AIG.grade(items)              -> Promise<{ [qid]: { m, fb, steps, tip, missing, models } } | null>   items: [{ q, answer, key }]   (key = paperId::questionId, used to find the marking scheme)
+     AIG.report({id,max,ai,human,models}) -> fire-and-forget: tells the service a student changed an AI mark (numbers only)
+     AIG.photoReady()              -> Promise<boolean>: true when the service can read photos of handwriting (GET /health lists "transcribe")
+     AIG.transcribe(file)          -> Promise<{ text, legible, notes, truncated } | { error: 'off'|'image'|'busy'|'limit'|'signin'|'old'|'net' }>
+                                      shrinks the photo in the browser (about 1400 px JPEG), sends it, and gets the handwriting back as TEXT for the
+                                      student to check. The text is then marked like any typed answer; the photo is not kept anywhere.
      AIG.tutor(ctx, onText?)       -> Promise<{ reply } | { error: 'off'|'busy'|'limit'|'signin'|'old'|'net' }>
                                       ctx: { q, answer, awarded, history:[{role,content}], message }; onText(textSoFar) is called as the reply streams in  */
 (function () {
@@ -86,7 +91,8 @@ async function post(items) {
 async function grade(list) {
   if (!enabled() || !list.length) return null;
   const out = {};
-  const payload = list.map(({ q, answer }) => ({ id: q.id, marks: q.marks, question: text(q.q), model: text(q.solution), answer: String(answer).slice(0, 2500) }));
+  const R = window.RUBRICS || {};     // marking schemes from js/data/rubrics.js, keyed paperId::questionId; a question without one is marked from its model answer
+  const payload = list.map(({ q, answer, key }) => { const o = { id: q.id, marks: q.marks, question: text(q.q), model: text(q.solution), answer: String(answer).slice(0, 2500) }; const r = R[key || q.id]; if (r) o.rubric = r; return o; });
   for (let i = 0; i < payload.length; i += BATCH) {
     const res = await post(payload.slice(i, i + BATCH));
     if (!res || !Array.isArray(res.results)) continue;                 // that batch stays on the rule-based checker
@@ -96,6 +102,61 @@ async function grade(list) {
     });
   }
   return Object.keys(out).length ? out : null;
+}
+
+/* ---------- photo of a handwritten answer -> text ---------- */
+let photoP = null;
+function photoReady() {
+  if (!enabled()) return Promise.resolve(false);
+  if (!photoP) photoP = callService('/health', {}, 8000).then(r => { if (r.body) return (r.body.features || []).indexOf('transcribe') >= 0; photoP = null; return false; }).catch(() => { photoP = null; return false; });
+  return photoP;
+}
+/* Redraws the photo smaller on a canvas: phone photos are 3-8 MB, the service needs about 100-300 KB to read handwriting.
+   Drawing onto a canvas also drops the photo's location and camera data. Returns a JPEG data URL, or null if the file is not a usable image. */
+async function shrink(file) {
+  if (!file || !/^image\//.test(file.type || '') || file.size > 25e6) return null;
+  let bmp; try { bmp = await createImageBitmap(file, { imageOrientation: 'from-image' }); } catch (e) { try { bmp = await createImageBitmap(file); } catch (e2) { return null; } }
+  try {
+    for (const [side, q] of [[1600, 0.78], [1400, 0.68], [1100, 0.6], [900, 0.5]]) {
+      const k = Math.min(1, side / Math.max(bmp.width, bmp.height)), c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(bmp.width * k)); c.height = Math.max(1, Math.round(bmp.height * k));
+      const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); x.drawImage(bmp, 0, 0, c.width, c.height);
+      const url = c.toDataURL('image/jpeg', q);
+      if (url.length <= 600000) return url;
+    }
+    return null;
+  } finally { try { bmp.close(); } catch (e) {} }
+}
+async function transcribe(file) {
+  if (!enabled()) return { error: 'off' };
+  const image = await shrink(file); if (!image) return { error: 'image' };
+  const headers = { 'Content-Type': 'application/json' };
+  try { const t = window.AUTH && await window.AUTH.idToken(); if (t) headers.Authorization = 'Bearer ' + t; } catch (e) {}
+  const r = await callService('/transcribe', { method: 'POST', headers, body: JSON.stringify({ image }) }, 90000);
+  if (r.body && typeof r.body.text === 'string') return { text: r.body.text.slice(0, 2500), legible: r.body.legible !== false, notes: String(r.body.notes || '').slice(0, 160), truncated: !!r.body.truncated };
+  if (r.status === 404) return { error: 'old' };
+  if (r.status === 429) return { error: 'limit' };
+  if (r.status === 401) return { error: 'signin' };
+  if (r.status === 400 || r.status === 413) return { error: 'image' };
+  return { error: r.status === 0 ? 'net' : 'busy' };
+}
+
+/* When a student changes an AI mark, tell the service (ids and numbers only, never the answer or who the student is).
+   That is how the team learns where the AI marker and students disagree. Fire-and-forget: it never blocks or throws. */
+const reported = {}, timers = {};
+function report(o) {
+  try {
+    if (!enabled() || !o || !o.id || !isFinite(o.ai) || !isFinite(o.human) || o.human === o.ai) return;
+    const key = o.id, sig = o.ai + '>' + o.human;
+    clearTimeout(timers[key]);
+    timers[key] = setTimeout(async () => {                      // a student flicking through options sends only the last one
+      if (reported[key] === sig) return; reported[key] = sig;
+      const headers = { 'Content-Type': 'application/json' };
+      try { const t = window.AUTH && await window.AUTH.idToken(); if (t) headers.Authorization = 'Bearer ' + t; } catch (e) {}
+      const item = { id: String(o.id), max: o.max, ai: o.ai, human: o.human, models: (o.models || []).slice(0, 3).map(String) };
+      callService('/feedback', { method: 'POST', headers, body: JSON.stringify({ items: [item] }), keepalive: true }, 8000).catch(() => {});
+    }, 3000);
+  } catch (e) {}
 }
 
 /* Reads the service's event stream ({t:"text"} ... {done:true}) and reports the growing reply through onText. */
@@ -177,5 +238,5 @@ function offlineTutor(c) {
   return head + '**Step by step:**\n' + stepList + (steps.length > 1 ? '\n\nTip: learn the key terms in bold in the model answer; examiners give marks for each point.' : '');
 }
 
-window.AIG = { enabled, grade, tutor, offlineTutor, _text: text, _endpoints: () => ENDPOINTS.slice() };
+window.AIG = { enabled, grade, report, photoReady, transcribe, tutor, offlineTutor, _text: text, _endpoints: () => ENDPOINTS.slice() };
 })();

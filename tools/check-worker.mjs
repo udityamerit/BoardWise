@@ -34,6 +34,8 @@ async function checkOne() {
     else ok('marking route is live');
     (j.features || []).includes('tutor') ? ok('tutor route is live') : no('tutor route is NOT live: this service is an old version. Redeploy it.');
     if (j.models) console.log('  models available: ' + [].concat(j.models).join(', '));
+    (j.features || []).includes('feedback') ? ok('feedback route is live (mark overrides are logged)') : console.log('  · no feedback route yet: redeploy to start learning from students who change AI marks (not required)');
+    (j.features || []).includes('transcribe') ? ok('photo-answer route is live') : console.log('  · no photo-answer route yet: redeploy to let students photograph handwritten answers (not required)');
     const t = await call('/tutor', { method: 'POST', body: '{"message":"hi"}' });
     t.r.status === 404 ? no('POST /tutor -> 404 (old version)') : ok('POST /tutor answers (' + t.r.status + '; 401 = needs sign-in, as expected)');
     const other = await fetch(url + '/health', { headers: { Origin: 'https://evil.example' }, signal: AbortSignal.timeout(20000) });

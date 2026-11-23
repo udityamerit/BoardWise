@@ -17,3 +17,6 @@ serviceAccount*.json
 # Cloudflare Worker local secrets
 .dev.vars
 .wrangler/
+
+# AI eval reports (local run output)
+tools/eval/reports/

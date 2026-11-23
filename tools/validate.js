@@ -91,6 +91,25 @@ PAPERS.forEach(P => {
   if (P.kind !== 'pyq' && sj && sj.total && total !== sj.total) W(where, 'counts for ' + total + ' marks but the subject is set up as ' + sj.total);
 });
 
+const text_ = h => String(h || '').replace(/<[^>]+>/g, ' ');
+/* marking schemes (js/data/rubrics.js): each must belong to a written question and add up to that question's marks */
+{
+  const RUB = sandbox.RUBRICS || {}, byId = new Map();
+  PAPERS.forEach(P => P.sections.forEach(S => S.questions.forEach(q => byId.set(P.id + '::' + q.id, q))));   // keys are paperId::questionId (question ids repeat across papers)
+  let nR = 0;
+  for (const [id, r] of Object.entries(RUB)) {
+    nR++; const q = byId.get(id), w = 'rubric ' + id;
+    if (!q) { E(w, 'no such question'); continue; }
+    if (q.type !== 'self') { E(w, 'only written questions have rubrics'); continue; }
+    if (!Array.isArray(r) || !r.length || r.length > 12) { E(w, 'needs 1 to 12 points'); continue; }
+    if (/अथवा|either|OR/.test(text_(q.q) + ' ' + r.map(x => x && x.p).join(' '))) { E(w, 'either/or question: a scheme would mark a complete answer to one alternative as partial'); continue; }
+    let sum = 0;
+    r.forEach((x, i) => { const m = x && Number(x.m); if (!x || typeof x.p !== 'string' || !x.p.trim() || x.p.length > 220) E(w, 'point ' + (i + 1) + ' has no usable text'); if (!(m > 0 && m <= q.marks && m * 2 === Math.round(m * 2))) E(w, 'point ' + (i + 1) + ' has bad marks ' + (x && x.m)); sum += m || 0; });
+    if (Math.abs(sum - q.marks) > 0.01) E(w, 'points add up to ' + sum + ' but the question is worth ' + q.marks);
+  }
+  if (nR) console.log('Checked ' + nR + ' rubrics.');
+}
+
 /* every subject should have something to practise on */
 SUBJECTS.forEach(s => { if (!PAPERS.some(p => p.subject === s.key)) W('subject ' + s.key, 'has no papers'); });
 

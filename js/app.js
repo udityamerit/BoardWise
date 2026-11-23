@@ -775,6 +775,42 @@ function viewTest() {
     el.querySelectorAll('.pb').forEach(b => b.onclick = () => nav(+b.dataset.i));
     secStat(); pace();
   }
+  /* "Wrote it on paper? Add a photo": a vision model copies the handwriting into text, the student checks and fixes it, and only
+     then does it become part of the answer (so it is marked like any typed answer, and a misread word never costs marks unseen). */
+  const PHOTO_MSG = { off: 'Photo reading is not available right now.', image: 'That file could not be used as a photo. Try a clear picture of the page (JPG or PNG).', busy: 'We could not read that photo right now. Try again in a moment, or type the answer.',
+    limit: 'You have used the photo reader a lot this hour. Please type this answer, or try again later.', signin: 'Please sign in to use photo answers.', old: 'Photo reading is not switched on yet.', net: 'No connection. Try again when you are online.' };
+  function photoUI(q, ans, setV) {
+    const box = document.getElementById('photo'); if (!box || !ans || !window.AIG || !AIG.photoReady) return;
+    const still = () => qs[A.cur] === q && document.getElementById('photo') === box && !done;
+    let busy = false;
+    function idle(msg, ok) {
+      box.innerHTML = `<label class="btn sm photobtn">📷 Wrote it on paper? Add a photo<input type="file" accept="image/*" hidden id="photofile"></label> <span class="small ${ok ? 'saved' : 'muted'}">${esc(msg || 'We read your handwriting into text. You check it before it is used.')}</span>`;
+      box.querySelector('#photofile').onchange = e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) run(f); };
+    }
+    async function run(f) {
+      if (busy) return; busy = true;
+      box.innerHTML = '<span class="aibar"><span class="spin"></span> Reading your handwriting…</span>';
+      let r; try { r = await AIG.transcribe(f); } catch (e) { r = { error: 'busy' }; }
+      busy = false; if (!still()) return;
+      if (r.error) return idle(PHOTO_MSG[r.error] || PHOTO_MSG.busy);
+      if (!r.text) return idle('We could not find any handwriting in that photo. Try again in good light, with the page flat and filling the picture.');
+      review(r);
+    }
+    function review(r) {
+      box.innerHTML = `<div class="photoreview"><b>Check what we read</b>
+        <div class="small muted">Fix anything that is wrong: this is exactly what will be marked. Words shown as [?] could not be read.${r.notes ? ' ' + esc(r.notes) : ''}${r.truncated ? ' Only the first part of a very long answer was kept.' : ''}</div>
+        <textarea class="ans" id="phtxt">${esc(r.text)}</textarea>
+        <div class="row"><button class="btn sm pri" id="phuse">Use this text</button> <button class="btn sm" id="phno">Cancel</button></div></div>`;
+      const t = box.querySelector('#phtxt'); t.focus();
+      box.querySelector('#phno').onclick = () => idle();
+      box.querySelector('#phuse').onclick = () => {
+        const v = t.value.trim(); if (!v) return;
+        const cur = ans.value.trim(); ans.value = cur ? cur + '\n' + v : v; setV(ans.value);
+        idle('✓ Added to your answer. Read it once more before you submit.', true);
+      };
+    }
+    AIG.photoReady().then(ok => { if (ok && still() && !box.innerHTML) idle(); }).catch(() => {});
+  }
   function draw() {
     const q = qs[A.cur]; A.seen[q.id] = 1; save();
     if (undo && undo.id !== q.id) undo = null;
@@ -789,7 +825,7 @@ function viewTest() {
         <button class="btn sm ${A.flags[q.id] ? 'danger' : ''}" id="flag">${A.flags[q.id] ? '⚑ Flagged' : '⚐ Flag for review'}</button></div>
       <div class="secinfo"><b>${esc(q.sec.title)}</b>${n < g.qs.length ? ` — <b>Attempt any ${n} of ${g.qs.length}</b>` : ''}${q.sec.instruction ? ' — ' + esc(q.sec.instruction) : ''}
         <div style="margin-top:6px"><span id="secstat" class="chip gray"></span></div>${q.sec.passage ? `<div class="pass">${q.sec.passage}</div>` : ''}</div>
-      <div class="qtext">${q.q}</div>${figHtml(q, false)}${input}
+      <div class="qtext">${q.q}</div>${figHtml(q, false)}${input}${q.type !== 'mcq' && q.type !== 'num' ? '<div id="photo" class="photo"></div>' : ''}
       <div class="qtools">${isAns(v) ? '<button class="btn sm" id="clear">Clear answer</button>' : ''}${undo ? '<span class="small muted">Answer cleared.</span> <button class="btn sm pri" id="undo">Undo</button>' : ''}${isAns(v) ? '<span class="small saved">✓ Saved</span>' : ''}</div>
       <div class="qfoot"><button class="btn" id="prev" ${A.cur === 0 ? 'disabled' : ''}>‹ Previous</button>
         <button class="btn pri" id="next" ${A.cur === qs.length - 1 ? 'disabled' : ''}>Next ›</button></div>`;
@@ -817,6 +853,7 @@ function viewTest() {
       ['paste', 'drop', 'dragover'].forEach(ev => ans.addEventListener(ev, block));
       ans.addEventListener('beforeinput', e => { if (/^insertFrom(Paste|Drop|Yank)/.test(e.inputType)) block(e); });
     }
+    if (q.type !== 'mcq' && q.type !== 'num') photoUI(q, ans, setV);
     document.getElementById('flag').onclick = () => { A.flags[q.id] = !A.flags[q.id]; if (!A.flags[q.id]) delete A.flags[q.id]; save(); draw(); };
     document.getElementById('prev').onclick = () => nav(A.cur - 1);
     document.getElementById('next').onclick = () => nav(A.cur + 1);
@@ -858,7 +895,11 @@ function viewResult(id) {
   const aiLive = () => location.hash === '#/result/' + A.id;
   function aiBanner(r) {
     if (aiState === 'run') return '<p class="aibar run" style="margin-top:10px"><span class="spin"></span> <b>AI examiner is marking your written answers…</b> your score will update in a moment.</p>';
-    if (r.selfAi) return `<p class="aibar" style="margin-top:10px">🤖 <b>${r.selfAi}</b> written answer(s) were marked by the AI examiner, double-checked by a second model. Disagree? Change the marks in the review — yours always win.</p>`;
+    if (r.selfAi) {
+      const twice = r.rows.filter(x => x.src === 'ai' && x.counted && A.ai && A.ai[x.q.id] && (A.ai[x.q.id].models || []).length >= 2).length;     // only claim a second opinion that really happened
+      const check = twice === r.selfAi ? ', double-checked by a second model' : twice ? ` (${twice} double-checked by a second model)` : '';
+      return `<p class="aibar" style="margin-top:10px">🤖 <b>${r.selfAi}</b> written answer(s) were marked by the AI examiner${check}. Disagree? Change the marks in the review — yours always win.</p>`;
+    }
     if (aiState === 'fail') return '<p class="small muted" style="margin-top:10px">The AI examiner is busy right now, so the built-in checker was used. Reopen this result later to try the AI examiner again.</p>';
     return '';
   }
@@ -866,7 +907,7 @@ function viewResult(id) {
   async function runAI() {
     if (!window.AIG || !AIG.enabled() || aiRunning.has(A.id)) return;
     const todo = [];
-    qsOf(A).forEach(q => { const v = A.answers[q.id]; if (q.type === 'self' && isAns(v) && !(A.self && A.self[q.id] != null) && !(A.ai && A.ai[q.id])) todo.push({ q, answer: v }); });
+    qsOf(A).forEach(q => { const v = A.answers[q.id]; if (q.type === 'self' && isAns(v) && !(A.self && A.self[q.id] != null) && !(A.ai && A.ai[q.id])) todo.push({ q, answer: v, key: canon(A, q.id) }); });
     if (!todo.length) return;
     aiRunning.add(A.id); aiState = 'run'; summary();
     let res = null; try { res = await AIG.grade(todo); } catch (e) { res = null; }
@@ -1046,6 +1087,8 @@ function viewResult(id) {
     document.querySelectorAll('[data-q]').forEach(sel => sel.onchange = () => {
       A.self = A.self || {};
       if (sel.value === '') delete A.self[sel.dataset.q]; else A.self[sel.dataset.q] = parseFloat(sel.value);
+      const ai = A.ai && A.ai[sel.dataset.q], qq = ai && qsOf(A).find(x => x.id === sel.dataset.q);   // tell the service when a student disagrees with the AI
+      if (ai && qq && sel.value !== '' && window.AIG && AIG.report) AIG.report({ id: canon(A, qq.id), max: qq.marks, ai: ai.m, human: parseFloat(sel.value), models: ai.models });
       const all = rawAttempts().slice(); const i = all.findIndex(a => a.id === A.id); if (i >= 0) all[i] = A; saveAttempts(all);
       const y = window.scrollY; summary(); review(); window.scrollTo(0, y);
     });
