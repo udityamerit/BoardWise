@@ -8,7 +8,7 @@ const root = path.join(__dirname, '..');
 const verbose = process.argv.includes('--verbose');
 
 const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-const files = [...html.matchAll(/<script src="(js\/data\/[^"]+)"/g)].map(m => m[1]);
+const files = [...html.matchAll(/<script src="(js\/data\/[^"?]+)/g)].map(m => m[1]);
 const sandbox = { window: {}, console };
 sandbox.window = sandbox; sandbox.self = sandbox; vm.createContext(sandbox);
 files.forEach(f => {

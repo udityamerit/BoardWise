@@ -12,13 +12,14 @@ const SPEC = [
 ];
 const MOCKS = 10, plain = h => String(h).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
 
-/* raw item -> options in final order + answer index (the right option lands on a seeded random position) */
+/* raw item -> options in final order + answer index (the right option lands on a seeded random position).
+   p = for each shown option, its index in the raw item (the Hindi of the item is built in raw order and mapped with it). */
 function finish(it, r) {
-  if (it.fixed) return { o: it.o.slice(), a: it.a };
-  const o = it.o.slice(), right = o[0];
-  NL.shuffle(o, r);
-  return { o, a: o.indexOf(right) };
+  if (it.fixed) return { o: it.o.slice(), a: it.a, p: it.o.map((_, i) => i) };
+  const p = NL.shuffle(it.o.map((_, i) => i), r);
+  return { o: p.map(i => it.o[i]), a: p.indexOf(0), p };
 }
+NL.src = new Map();     // "<paperId>|<questionId>" -> { it: raw item, p: option order }, for the Hindi medium (js/data/neet-hi.js)
 
 function dealSection(sec) {
   const bank = NL.bank[sec.bank] || {}, seen = new Set(), seq = [];
@@ -41,6 +42,7 @@ SPEC.forEach(S => {
       const r = NL.rng(NL.hash(S.key + '#' + k + sec.id));
       return { id: sec.id, title: sec.title, part: null, instruction: INST,
         questions: dealt[si][k].map((it, i) => { const f = finish(it, r);
+          NL.src.set(S.key + '-mock-' + (k + 1) + '|' + sec.id + '-' + (i + 1), { it, p: f.p });
           return { id: sec.id + '-' + (i + 1), type: 'mcq', marks: 4, neg: 1, chapter: it.ch, q: it.q, options: f.o, answer: f.a, solution: it.s, difficulty: it.d || 'medium' }; }) };
     });
     const nq = sections.reduce((a, s) => a + s.questions.length, 0);

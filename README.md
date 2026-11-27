@@ -32,7 +32,11 @@ AI marking and the AI tutor run through a small Cloudflare Worker that holds the
 
 The site is plain static files, so any static host works. Recommended: **Vercel** (free tier, deploys from the GitHub repo, preview URL for every branch, and the serverless functions the AI agents will need, in the same project). `vercel.json` is included, so "Import Git Repository" in Vercel is all that is required. GitHub Pages also works with no extra files (Settings → Pages → deploy from branch `main`, folder `/`). Whichever host you use, add its domain (for GitHub Pages: `udityamerit.github.io`) under Firebase console → Authentication → Settings → *Authorized domains*.
 
+**Every deploy is picked up at once (no stale files).** `node tools/stamp-version.js` stamps each script and stylesheet in `index.html` with `?v=<hash of the file>` and writes the site version to `<meta name="bw-version">` and `version.json`. Run it after changing any served file and commit the result (`--check` fails if it is out of date; the "Site checks" workflow runs it on every push). A browser therefore fetches a file again exactly when it changed, even on GitHub Pages, which caches everything for 10 minutes. A page left open across a deploy sees the new `version.json` (checked on load, when the tab comes back, and every 15 minutes) and reloads once — never during a test: then a note offers to load it after the test is submitted. `vercel.json` makes Vercel serve the page and `version.json` uncached and the stamped files as immutable.
+
 ## Accounts and data (Firebase)
+
+
 
 * Project `ssc-board-prep` (web config in `js/data/backend.js`), **Email/Password** sign-in, Firestore in `asia-south1`. No SDK: `js/auth.js` talks to the REST APIs.
 * Data lives at `users/{uid}/…`. `firestore.rules` allows a signed-in user to read/write **only** their own `users/{their uid}` subtree and denies everything else. Publish the rules in the Firebase console (Firestore → Rules) or with `firebase deploy --only firestore:rules`.
@@ -40,6 +44,10 @@ The site is plain static files, so any static host works. Recommended: **Vercel*
 * Password reset uses Firebase's reset e-mail ("Forgot password?"); check that the e-mail template and sender suit you.
 * Offline / test mode: set `localStorage['ssc.forceLocal']='1'` (or an empty `apiKey`) to use accounts that exist only in the current browser. Results are written locally first and synced when online.
 * **Tested**: local-mode flow end to end in a browser, and the Firebase code paths against a stub. **Not tested here**: a live Firebase sign-up, the reset e-mail and the deployed rules — please try one real sign-up after deploying.
+
+## Hindi and English interface
+
+The whole site can be used in Hindi or English: the **EN | हिं** switch in the top bar (kept on the device as `bw_lang`). With no choice made, UP Board and Bihar Board open in Hindi and other boards in English. Pages are written in English; `js/i18n.js` translates what is rendered, run by run (text with its inline tags), from `js/i18n-hi.js` (`id|हिन्दी` lines plus hand-written `I18N.add` keys and `{n}` patterns) and `js/i18n-en.js` (English keys, generated). Question papers are never touched by it: UP Board papers are in Hindi already, and NEET papers have their own Hindi medium (above). After changing interface text, run `node tools/i18n-extract.js --out ui.tsv` to regenerate `js/i18n-en.js` and list the English with no Hindi yet; in a browser, `I18N.left()` lists English still on the page.
 
 ## What students get
 
@@ -114,6 +122,8 @@ Limits: the templates cover Balbharati chapter topics but similar *types* repeat
 
 The board sets `alwaysMix`: every attempt (the first one too) is rebuilt in `makeVariant` from the whole subject bank — each slot of the chosen mock is filled with an unseen question of the same section, difficulty and chapter from any of the 10 mocks — and the test screens show no "mix" label. Negative marking comes from `neg` on each question (`evaluate`).
 
+**Hindi medium.** Every NEET question, option and solution is also available in Hindi (NCERT Hindi-medium terms; numbers, formulae, units and scientific names unchanged; names with no real Hindi equivalent, such as chemicals and elements, IUPAC names, people, taxa, enzymes and hormones, stay in English rather than being written out in Devanagari). The English banks stay the source: `js/data/neet-hi-{phy,chem,bot,zoo,maths}.js` hold `id|हिन्दी` lines keyed by the FNV-1a hash of each English piece, `neet-hi-tpl.js` (generated) holds the English templates of numerical items with `{n}` slots, and the statement / matching / assertion–reason frames are built in Hindi in `neet-config.js`. `js/data/neet-hi.js` translates a question at render time, so the shuffling, answers and marking are identical in both languages. Students pick **English / हिन्दी / हिन्दी + English** on the instructions page, in the test bar and on the result page (`bw_qlang`; default follows the interface language). After changing a bank, `node tools/neet-hi-extract.js` regenerates the templates and lists English pieces with no Hindi yet; `node tools/test-neet-hindi.js` must report 100%.
+
 ## Paper layout (`window.SUBJECTS` in `js/data/config.js`)
 
 * Maths / Algebra / Geometry — 40 marks, 2 h each: Q1A 4×1, Q1B 4×1, Q2A any 2 of 3 (2), Q2B any 4 of 5 (2), Q3A any 1 of 2 (3), Q3B any 2 of 4 (3), Q4 any 2 of 3 (4), Q5 any 1 of 2 (3). Read from the 2025 transcriptions.
@@ -145,6 +155,8 @@ window.PAPERS.push({
 ## Checking the code
 
 ```powershell
+node tools/stamp-version.js --check  # every script/stylesheet in index.html carries its current ?v= hash (run without --check to update)
+node tools/test-neet-hindi.js     # every NEET question, option and solution has Hindi (100%), slots and tags match
 node tools/validate.js            # question bank: ids, types, marks, MCQ answer index, HTML balance, totals (add --verbose for warnings)
 node tools/gen-rubrics.mjs --dry     # lists what the one-time marking-scheme generator would send (see worker/README.md, "Marking schemes")
 node tools/mock-ai.mjs            # 100+ checks of worker/worker.js against a fake AI provider (grader, verifier, prompt boundary, cache, feedback, limiter, fallback, tutor, photo transcription, limits, /stats)

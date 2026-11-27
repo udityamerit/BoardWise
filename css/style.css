@@ -208,7 +208,7 @@ body.testing .userbox{display:none}
 .btnrow{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:12px}
 .saved{color:var(--ok);font-weight:600}
 .rvhead{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
-@media(max-width:900px){
+@media(max-width:1100px){
   .topbar{flex-wrap:wrap;gap:8px 10px;padding:8px 14px 0}
   .brand{flex:1;min-width:0}
   .brand span{min-width:0}
@@ -393,3 +393,21 @@ body.testing .userbox{display:none}
 .tform input:focus{outline:2px solid var(--brand-l);border-color:var(--brand)}
 @media(max-width:600px){.tmsg{max-width:100%}.tform{flex-direction:column}.tform .btn{width:100%}.tmsgs{max-height:300px}}
 @media print{.thost{display:none!important}}
+/* question language (Hindi medium of the NEET papers) */
+.qlang{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:6px 0}.qlang .small{margin-right:4px}
+.en-alt{display:block;color:var(--muted);font-size:.92em;margin-top:4px;border-left:3px solid var(--line);padding-left:8px}span.en-alt{margin-top:2px}
+.tbar .qlang .small{display:none}
+
+/* interface language switch (js/i18n.js) */
+@media(min-width:1101px){.topbar nav{margin-left:auto}}
+.langsw{display:inline-flex;align-items:center;gap:0;margin-left:auto;padding:2px;border:1px solid var(--line);border-radius:999px;background:#fff;cursor:pointer;font:inherit;flex:none}
+.langsw span{padding:4px 10px;border-radius:999px;font-size:.8rem;font-weight:700;color:var(--muted);line-height:1.2}
+.langsw span.on{background:var(--brand);color:#fff}
+.langsw:hover{border-color:var(--brand)}
+.langsw:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+@media(max-width:600px){.langsw span{padding:3px 6px;font-size:.74rem}.topbar{gap:8px 6px}}
+@media print{.langsw{display:none!important}}
+
+/* a newer deploy is ready (js/app.js, watchVersion) */
+.vnote{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:60;display:flex;align-items:center;gap:10px;flex-wrap:wrap;max-width:calc(100% - 24px);padding:10px 14px;border-radius:12px;background:var(--ink);color:#fff;font-size:.88rem;box-shadow:0 8px 24px rgba(0,0,0,.2)}
+.vnote .btn{background:#fff;color:var(--ink)}

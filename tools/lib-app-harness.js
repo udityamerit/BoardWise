@@ -5,7 +5,7 @@ const fs = require('fs'), path = require('path'), vm = require('vm');
 module.exports = function load() {
   const root = path.join(__dirname, '..');
   const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-  const scripts = [...html.matchAll(/<script src="(js\/[^"]+)"/g)].map(m => m[1]).filter(f => !/(^js\/app\.js|firebase|auth|ai\.js|sync)/i.test(f));
+  const scripts = [...html.matchAll(/<script src="(js\/[^"?]+)/g)].map(m => m[1]).filter(f => !/(^js\/app\.js|firebase|auth|ai\.js|sync)/i.test(f));
   const stub = () => new Proxy(function () {}, { get: (t, k) => (k === Symbol.toPrimitive ? () => '' : k === 'length' ? 0 : stub()), apply: () => stub(), set: () => true });
   const store = {};
   const sb = { console, setTimeout, clearTimeout, setInterval, clearInterval, Promise, Math, Date, JSON,

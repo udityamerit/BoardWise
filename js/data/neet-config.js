@@ -19,7 +19,7 @@ window.BOARD_CFG.upneet = {
   heroTitle: 'NEET-pattern mock tests · Class XI NCERT',
   heroText: 'Timed NEET-style papers on the Class XI NCERT syllabus that UP Board follows: 4-option MCQs, +4 for a right answer and −1 for a wrong one, NEET timing, instant marking with worked solutions, chapter-wise analysis and progress tracking.',
   examWindow: 'NEET (UG) — check the NTA notice at neet.nta.nic.in',
-  medium: 'English medium',
+  medium: 'Hindi + English medium',
   chapterNote: 'Chapters follow the current (rationalised) NCERT Class XI textbooks prescribed by UP Board (UPMSP), cross-checked with the Class 11 chapter lists on tiwariacademy.com.',
   grades: [
     { min: 85, label: 'Excellent', cls: 'g-dist' },
@@ -143,6 +143,13 @@ function picker(n, r) {
 }
 const TWO = ['Both Statement I and Statement II are true', 'Both Statement I and Statement II are false', 'Statement I is true but Statement II is false', 'Statement I is false but Statement II is true'];
 const COUNT = ['Only one', 'Only two', 'Only three', 'All four'];
+/* Hindi medium: each generated item carries hf(), which builds the same question in Hindi from the Hindi of its parts (NL.T, js/data/neet-hi.js)
+   and returns { q, o, s } with o in the item's own option order, or null when a part has no Hindi yet. */
+const tr = s => s == null || s === '' ? '' : NL.T ? NL.T(s) : null;
+const okAll = a => a.every(x => x != null);
+const TWO_HI = ['कथन I और कथन II दोनों सत्य हैं', 'कथन I और कथन II दोनों असत्य हैं', 'कथन I सत्य है परन्तु कथन II असत्य है', 'कथन I असत्य है परन्तु कथन II सत्य है'];
+const COUNT_HI = ['केवल एक', 'केवल दो', 'केवल तीन', 'चारों'];
+const ARO_HI = ['A और R दोनों सत्य हैं तथा R, A की सही व्याख्या है', 'A और R दोनों सत्य हैं परन्तु R, A की सही व्याख्या नहीं है', 'A सत्य है परन्तु R असत्य है', 'A असत्य है परन्तु R सत्य है'];
 const ARO = ['Both A and R are true and R is the correct explanation of A', 'Both A and R are true but R is NOT the correct explanation of A', 'A is true but R is false', 'A is false but R is true'];
 /* Statement bank: T = true statements; F = [false statement, what is actually true].
    spec: { correct, incorrect, two, count } = how many questions of each kind to make. */
@@ -150,31 +157,48 @@ NL.stmts = (sec, ch, T, F, spec) => {
   const r = NL.rng(NL.hash(sec + ch + 'st')), pt = picker(T.length, r), pf = picker(F.length, r), out = [], keys = new Set();
   const uniq = k => { if (keys.has(k)) return false; keys.add(k); return true; };
   const fix = i => `“${F[i][0]}” is wrong: ${F[i][1]}`;
+  const hT = i => tr(T[i]), hF = i => tr(F[i][0]), hX = i => tr(F[i][1]);
+  const hfix = i => { const a = hF(i), b = hX(i); return a == null || b == null ? null : `“${a}” गलत है: ${b}`; };
   for (let n = 0, g = 0; n < (spec.correct || 0) && g < 60; g++) {
     const t = pt(1), f = pf(3); if (!t || !f) break;
     if (!uniq('c' + t + '|' + f.slice().sort())) continue;
-    out.push({ q: 'Which one of the following statements is <b>correct</b>?', o: [T[t[0]]].concat(f.map(i => F[i][0])), s: `<b>Correct:</b> ${T[t[0]]}<br>` + f.map(fix).join('<br>'), d: 'medium' }); n++;
+    out.push({ q: 'Which one of the following statements is <b>correct</b>?', o: [T[t[0]]].concat(f.map(i => F[i][0])), s: `<b>Correct:</b> ${T[t[0]]}<br>` + f.map(fix).join('<br>'), d: 'medium',
+      hf: () => { const o = [hT(t[0])].concat(f.map(hF)), x = f.map(hfix); return okAll(o.concat(x)) ? { q: 'निम्नलिखित में से कौन-सा कथन <b>सही</b> है?', o, s: `<b>सही:</b> ${o[0]}<br>` + x.join('<br>') } : null; } }); n++;
   }
   for (let n = 0, g = 0; n < (spec.incorrect || 0) && g < 60; g++) {
     const t = pt(3), f = pf(1); if (!t || !f) break;
     if (!uniq('i' + f + '|' + t.slice().sort())) continue;
-    out.push({ q: 'Which one of the following statements is <b>incorrect</b>?', o: [F[f[0]][0]].concat(t.map(i => T[i])), s: fix(f[0]) + '<br>The other three statements are true.', d: 'medium' }); n++;
+    out.push({ q: 'Which one of the following statements is <b>incorrect</b>?', o: [F[f[0]][0]].concat(t.map(i => T[i])), s: fix(f[0]) + '<br>The other three statements are true.', d: 'medium',
+      hf: () => { const o = [hF(f[0])].concat(t.map(hT)), x = hfix(f[0]); return okAll(o) && x != null ? { q: 'निम्नलिखित में से कौन-सा कथन <b>गलत</b> है?', o, s: x + '<br>शेष तीनों कथन सत्य हैं।' } : null; } }); n++;
   }
   for (let n = 0, g = 0; n < (spec.two || 0) && g < 60; g++) {
     const c = n % 4, s1 = c === 0 || c === 2, s2 = c === 0 || c === 3;   // which of the two statements is true
     const a = s1 ? pt(1) : pf(1), b = s2 ? pt(1, i => !s1 || i !== a[0]) : pf(1, i => s1 || i !== a[0]); if (!a || !b) break;
     const A = s1 ? T[a[0]] : F[a[0]][0], B = s2 ? T[b[0]] : F[b[0]][0];
     if (!uniq('t' + A + '|' + B)) continue;
-    out.push(NL.fx(`Given below are two statements:<br><b>Statement I:</b> ${A}<br><b>Statement II:</b> ${B}<br>In the light of the above statements, choose the correct answer.`, TWO, c,
-      `Statement I is ${s1 ? 'true' : 'false'}${s1 ? '.' : ' — ' + F[a[0]][1]}<br>Statement II is ${s2 ? 'true' : 'false'}${s2 ? '.' : ' — ' + F[b[0]][1]}`)); n++;
+    const it = NL.fx(`Given below are two statements:<br><b>Statement I:</b> ${A}<br><b>Statement II:</b> ${B}<br>In the light of the above statements, choose the correct answer.`, TWO, c,
+      `Statement I is ${s1 ? 'true' : 'false'}${s1 ? '.' : ' — ' + F[a[0]][1]}<br>Statement II is ${s2 ? 'true' : 'false'}${s2 ? '.' : ' — ' + F[b[0]][1]}`);
+    it.hf = () => {
+      const hA = s1 ? hT(a[0]) : hF(a[0]), hB = s2 ? hT(b[0]) : hF(b[0]), xa = s1 ? '' : hX(a[0]), xb = s2 ? '' : hX(b[0]);
+      if (!okAll([hA, hB, xa, xb])) return null;
+      return { q: `नीचे दो कथन दिए गए हैं:<br><b>कथन I:</b> ${hA}<br><b>कथन II:</b> ${hB}<br>उपर्युक्त कथनों के आलोक में सही उत्तर चुनिए।`, o: TWO_HI.slice(),
+        s: `कथन I ${s1 ? 'सत्य है।' : 'असत्य है — ' + xa}<br>कथन II ${s2 ? 'सत्य है।' : 'असत्य है — ' + xb}` };
+    };
+    out.push(it); n++;
   }
   for (let n = 0, g = 0; n < (spec.count || 0) && g < 60; g++) {
     const k = [2, 3, 1, 4][n % 4], t = pt(k), f = k < 4 ? pf(4 - k) : []; if (!t || !f) break;
-    const items = NL.shuffle(t.map(i => ({ s: T[i], ok: true })).concat(f.map(i => ({ s: F[i][0], ok: false, fix: F[i][1] }))), r);
+    const items = NL.shuffle(t.map(i => ({ s: T[i], ok: true, i })).concat(f.map(i => ({ s: F[i][0], ok: false, fix: F[i][1], i }))), r);
     if (!uniq('n' + items.map(x => x.s).sort().join('|'))) continue;
     const L = 'ABCD';
     out.push(NL.fx('Consider the following statements:<br>' + items.map((x, i) => `<b>${L[i]}.</b> ${x.s}`).join('<br>') + '<br>How many of the above statements are correct?', COUNT, k - 1,
       items.map((x, i) => `<b>${L[i]}</b> ${x.ok ? 'is true.' : 'is false — ' + x.fix}`).join('<br>') + `<br>So ${k} statement${k > 1 ? 's are' : ' is'} correct.`)); n++;
+    out[out.length - 1].hf = () => {
+      const hs = items.map(x => x.ok ? hT(x.i) : hF(x.i)), hx = items.map(x => x.ok ? '' : hX(x.i));
+      if (!okAll(hs.concat(hx))) return null;
+      return { q: 'निम्नलिखित कथनों पर विचार कीजिए:<br>' + hs.map((s, i) => `<b>${L[i]}.</b> ${s}`).join('<br>') + '<br>उपर्युक्त में से कितने कथन सही हैं?', o: COUNT_HI.slice(),
+        s: items.map((x, i) => `<b>${L[i]}</b> ${x.ok ? 'सत्य है।' : 'असत्य है — ' + hx[i]}`).join('<br>') + `<br>अतः ${k} कथन सही ${k > 1 ? 'हैं' : 'है'}।` };
+    };
   }
   add(sec, ch, out);
 };
@@ -185,6 +209,7 @@ NL.pairs = (sec, ch, h1, h2, P, spec) => {
   const r = NL.rng(NL.hash(sec + ch + h1 + 'pr')), pk = picker(P.length, r), out = [], keys = new Set();
   const uniq = k => { if (keys.has(k)) return false; keys.add(k); return true; };
   const distinctR = idx => new Set(idx.map(i => P[i][1])).size === idx.length;
+  const hL = i => tr(P[i][0]), hR = i => tr(P[i][1]), hh1 = () => tr(h1), hh2 = () => tr(h2);
   const pick4 = () => { for (let g = 0; g < 30; g++) { const x = pk(4); if (x && distinctR(x)) return x; } return null; };
   for (let n = 0, g = 0; n < (spec.list || 0) && g < 60; g++) {
     const idx = pick4(); if (!idx || !uniq('l' + idx.slice().sort())) continue;
@@ -195,32 +220,53 @@ NL.pairs = (sec, ch, h1, h2, P, spec) => {
     for (let t = 0; perms.length < 3 && t < 200; t++) { const p = NL.shuffle([0, 1, 2, 3], r); if (!seen.has(p.join())) { seen.add(p.join()); perms.push(p); } }
     const tbl = `<table><tr><th>List-I (${h1})</th><th>List-II (${h2})</th></tr>` + idx.map((i, k) => `<tr><td>${'ABCD'[k]}. ${P[i][0]}</td><td>${ROM[k]}. ${P[rights[k]][1]}</td></tr>`).join('') + '</table>';
     out.push({ q: 'Match List-I with List-II:' + tbl + 'Choose the correct answer from the options given below.', o: [code(truth)].concat(perms.map(code)),
-      s: idx.map((i, k) => `${'ABCD'[k]}. ${P[i][0]} → ${P[i][1]}`).join('<br>'), d: 'medium' }); n++;
+      s: idx.map((i, k) => `${'ABCD'[k]}. ${P[i][0]} → ${P[i][1]}`).join('<br>'), d: 'medium',
+      hf: () => {
+        const a = hh1(), b = hh2(), Ls = idx.map(hL), Rs = rights.map(hR), Rt = idx.map(hR);
+        if (!okAll([a, b].concat(Ls, Rs, Rt))) return null;
+        const t = `<table><tr><th>सूची-I (${a})</th><th>सूची-II (${b})</th></tr>` + idx.map((i, k) => `<tr><td>${'ABCD'[k]}. ${Ls[k]}</td><td>${ROM[k]}. ${Rs[k]}</td></tr>`).join('') + '</table>';
+        return { q: 'सूची-I का सूची-II से मिलान कीजिए:' + t + 'नीचे दिए गए विकल्पों में से सही उत्तर चुनिए।', o: [code(truth)].concat(perms.map(code)),
+          s: idx.map((i, k) => `${'ABCD'[k]}. ${Ls[k]} → ${Rt[k]}`).join('<br>') };
+      } }); n++;
   }
   const mism = (i, avoid) => { const js = NL.shuffle([...P.keys()], r).filter(j => P[j][1] !== P[i][1] && !avoid.has(j)); return js[0]; };
   for (let n = 0, g = 0; n < (spec.right || 0) && g < 60; g++) {
     const idx = pick4(); if (!idx) break;
-    const [t, ...w] = idx, opts = [`${P[t][0]} — ${P[t][1]}`].concat(w.map(i => `${P[i][0]} — ${P[mism(i, new Set([t]))][1]}`));
+    const [t, ...w] = idx, wr = w.map(i => mism(i, new Set([t]))), opts = [`${P[t][0]} — ${P[t][1]}`].concat(w.map((i, k) => `${P[i][0]} — ${P[wr[k]][1]}`));
     if (new Set(opts).size < 4 || !uniq('r' + opts.slice().sort())) continue;
-    out.push({ q: `Which one of the following pairs (${h1} — ${h2}) is <b>correctly</b> matched?`, o: opts, s: `${P[t][0]} — ${P[t][1]} is correct.<br>` + w.map(i => `${P[i][0]} goes with ${P[i][1]}`).join('<br>'), d: 'medium' }); n++;
+    out.push({ q: `Which one of the following pairs (${h1} — ${h2}) is <b>correctly</b> matched?`, o: opts, s: `${P[t][0]} — ${P[t][1]} is correct.<br>` + w.map(i => `${P[i][0]} goes with ${P[i][1]}`).join('<br>'), d: 'medium',
+      hf: () => {
+        const a = hh1(), b = hh2(), lt = hL(t), rt = hR(t), lw = w.map(hL), rwrong = wr.map(hR), rw = w.map(hR);
+        if (!okAll([a, b, lt, rt].concat(lw, rwrong, rw))) return null;
+        return { q: `निम्नलिखित में से कौन-सा युग्म (${a} — ${b}) <b>सही</b> सुमेलित है?`, o: [`${lt} — ${rt}`].concat(lw.map((l, k) => `${l} — ${rwrong[k]}`)),
+          s: `${lt} — ${rt} सही है।<br>` + lw.map((l, k) => `${l} का सही मेल ${rw[k]} है`).join('<br>') };
+      } }); n++;
   }
   for (let n = 0, g = 0; n < (spec.wrong || 0) && g < 60; g++) {
     const idx = pick4(); if (!idx) break;
     const [f, ...t] = idx, bad = mism(f, new Set(t)); if (bad == null) continue;
     const opts = [`${P[f][0]} — ${P[bad][1]}`].concat(t.map(i => `${P[i][0]} — ${P[i][1]}`));
     if (new Set(opts).size < 4 || !uniq('w' + opts.slice().sort())) continue;
-    out.push({ q: `Which one of the following pairs (${h1} — ${h2}) is <b>incorrectly</b> matched?`, o: opts, s: `${P[f][0]} goes with ${P[f][1]}, not ${P[bad][1]}. The other three pairs are correct.`, d: 'medium' }); n++;
+    out.push({ q: `Which one of the following pairs (${h1} — ${h2}) is <b>incorrectly</b> matched?`, o: opts, s: `${P[f][0]} goes with ${P[f][1]}, not ${P[bad][1]}. The other three pairs are correct.`, d: 'medium',
+      hf: () => {
+        const a = hh1(), b = hh2(), lf = hL(f), rf = hR(f), rb = hR(bad), lt = t.map(hL), rt = t.map(hR);
+        if (!okAll([a, b, lf, rf, rb].concat(lt, rt))) return null;
+        return { q: `निम्नलिखित में से कौन-सा युग्म (${a} — ${b}) <b>गलत</b> सुमेलित है?`, o: [`${lf} — ${rb}`].concat(lt.map((l, k) => `${l} — ${rt[k]}`)),
+          s: `${lf} का सही मेल ${rf} है, ${rb} नहीं। शेष तीनों युग्म सही हैं।` };
+      } }); n++;
   }
   if (spec.ask) for (let n = 0, g = 0; n < (spec.direct || 0) && g < 60; g++) {
     const t = pk(1); if (!t) break; const i = t[0];
     const others = [...new Set(NL.shuffle(P.filter(p => p[1] !== P[i][1]).map(p => p[1]), r))].slice(0, 3);
     if (others.length < 3 || !uniq('d' + i)) continue;
-    out.push({ q: spec.ask(P[i][0]), o: [P[i][1]].concat(others), s: `${P[i][0]} — ${P[i][1]}.`, d: 'easy' }); n++;
+    out.push({ q: spec.ask(P[i][0]), o: [P[i][1]].concat(others), s: `${P[i][0]} — ${P[i][1]}.`, d: 'easy',
+      hf: () => { const q = tr(spec.ask(P[i][0])), o = [hR(i)].concat(others.map(tr)), l = hL(i); return okAll([q, l].concat(o)) ? { q, o, s: `${l} — ${o[0]}।` } : null; } }); n++;
   }
   add(sec, ch, out);
 };
 /* Assertion–Reason: [assertion, reason, code 0..3 (see ARO), explanation] */
-NL.ar = (sec, ch, list) => add(sec, ch, list.map(x => NL.fx(`Given below are two statements: one is labelled <b>Assertion (A)</b> and the other <b>Reason (R)</b>.<br><b>Assertion (A):</b> ${x[0]}<br><b>Reason (R):</b> ${x[1]}<br>Choose the correct answer.`, ARO, x[2], x[3])));
+NL.ar = (sec, ch, list) => add(sec, ch, list.map(x => Object.assign(NL.fx(`Given below are two statements: one is labelled <b>Assertion (A)</b> and the other <b>Reason (R)</b>.<br><b>Assertion (A):</b> ${x[0]}<br><b>Reason (R):</b> ${x[1]}<br>Choose the correct answer.`, ARO, x[2], x[3]), {
+  hf: () => { const a = tr(x[0]), b = tr(x[1]), s = tr(x[3]); return okAll([a, b, s]) ? { q: `नीचे दो कथन दिए गए हैं: एक को <b>अभिकथन (A)</b> और दूसरे को <b>कारण (R)</b> कहा गया है।<br><b>अभिकथन (A):</b> ${a}<br><b>कारण (R):</b> ${b}<br>सही उत्तर चुनिए।`, o: ARO_HI.slice(), s } : null; } })));
 /* numeric template: rows of parameters -> items; fn(...row) returns [q, ans, unit, wrongs, solution, difficulty?] */
 NL.gen = (sec, ch, rows, fn) => add(sec, ch, rows.map(row => { const x = fn.apply(null, row); return NL.num(x[0], x[1], x[2], x[3], x[4], x[5]); }));
 /* same for templates whose answer is not a number: fn returns [q, right, wrongs[3], solution, difficulty?] */

@@ -1,0 +1,27 @@
+# Runs on every push and pull request: the question banks are valid, every NEET question has its Hindi, and index.html points
+# at the current version of every script and stylesheet (so no student is served an old file after a deploy).
+# A failing run emails the repository owner. Needs no keys and sends nothing anywhere.
+name: Site checks
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Files are version-stamped (run node tools/stamp-version.js if this fails)
+        run: node tools/stamp-version.js --check
+      - name: Question banks
+        run: node tools/validate.js
+      - name: Answers and choices
+        run: node tools/test-answers.js && node tools/test-choices.js
+      - name: NEET Hindi medium is complete
+        run: node tools/test-neet-hindi.js

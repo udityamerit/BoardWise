@@ -49,7 +49,9 @@ const dayKey = t => { const d = new Date(t); return d.getFullYear() + '-' + pad(
 const elapsed = A => Math.max(0, ((A.submittedAt || Date.now()) - A.startedAt) / 1000);
 const isAns = v => v !== undefined && v !== null && String(v).trim() !== '';
 const letter = i => String.fromCharCode(65 + i);
-const dateStr = t => new Date(t).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' });
+const LOC = () => (window.I18N && I18N.lang === 'hi' ? 'hi-IN' : undefined);
+const T = s => (window.I18N ? I18N.t(s) : s); // interface words inside paper content, which js/i18n.js leaves alone
+const dateStr = t => new Date(t).toLocaleDateString(LOC(), { day: '2-digit', month: 'short', year: 'numeric' });
 
 function flat(p) {
   if (p._flat) return p._flat;
@@ -236,12 +238,31 @@ function qsOf(A) {
       q = Object.assign({}, fq, { id, sec, idx: i, part: sec.part != null ? sec.part : null, foreign: { paperId: FP.id, title: FP.title, id: fq.id } });
     } else q = all.find(x => x.id === id);
     if (!q) return null;
+    q = localQ(q, q.foreign ? q.foreign.paperId + '|' + q.foreign.id : P.id + '|' + q.id);
     const perm = A.opt && A.opt[id];
     if (perm && q.options && perm.length === q.options.length && perm.every(k => k >= 0 && k < q.options.length))
       q = Object.assign({}, q, { options: perm.map(k => q.options[k]), answer: perm.indexOf(q.answer) });
     return q;
   });
 }
+/* Hindi medium of the NEET-pattern papers (js/data/neet-hi.js). The student picks the question language: 'en', 'hi', or 'both'
+   (Hindi with the English under it, as in the bilingual NEET paper). Default: the site's language. Only the text changes —
+   options keep their order and marking is by option index, so an attempt can switch language at any time. */
+const hasHindiQs = P => !!(P && window.NL && NL.hiQ && (P.board === 'upneet'));
+const qlang = () => { const v = LS.get('bw_qlang', null); return v === 'en' || v === 'hi' || v === 'both' ? v : (window.I18N && I18N.lang === 'hi' ? 'hi' : 'en'); };
+function localQ(q, key) {
+  const L = qlang(); if (L === 'en' || !window.NL || !NL.hiQ) return q;
+  const h = NL.hiQ(key); if (!h) return q;
+  const two = (hi, en, tag) => hi == null || hi === '' ? en : L === 'hi' ? hi : `${hi}<${tag} class="en-alt" lang="en">${en}</${tag}>`;
+  return Object.assign({}, q, { q: two(h.q, q.q, 'div'), options: q.options.map((o, i) => two(h.o && h.o[i], o, 'span')), solution: q.solution ? two(h.s, q.solution, 'div') : q.solution, qlang: L });
+}
+const langPicker = () => `<div class="qlang noprint" role="group" aria-label="Question language"><span class="small muted">प्रश्नों की भाषा / Question language:</span>
+  ${[['en', 'English'], ['hi', 'हिन्दी'], ['both', 'हिन्दी + English']].map(([k, l]) => `<button type="button" class="btn sm ${qlang() === k ? 'pri' : ''}" data-qlang="${k}" aria-pressed="${qlang() === k}">${l}</button>`).join('')}</div>`;
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('[data-qlang]'); if (!b) return;
+  LS.set('bw_qlang', b.dataset.qlang);
+  route(true);
+});
 /* questions of other mocks that could stand in for q (same subject, kind, section, type, marks) */
 function freshPool(P, q) {
   const out = [];
@@ -644,6 +665,7 @@ function viewInstr(id) {
       ? `<b>Retake — a fresh mix.</b> You have taken this paper before, so you get <b>new questions</b>: ${fresh ? `${fresh} of ${all.length} questions are replaced` : 'the questions are re-ordered and the options re-arranged'} with ones you have not seen (from the other ${esc(S.name)} mocks, same type, marks and chapter first), so you are tested on the subject, not on remembering the answers.`
       : '<b>First attempt.</b> You get this paper exactly as written. When you retake it, every question you have seen is swapped for a new one.'}
       <div style="margin-top:8px"><b>Difficulty:</b> ${diffMixHtml(all)} <span class="small muted">Every question is labelled <b>Easy</b> (quick, direct) or <b>Medium</b> (a few steps) with a suggested time, so you can plan your minutes.</span></div></div>
+    ${hasHindiQs(P) ? '<h3>Question language · प्रश्नों की भाषा</h3>' + langPicker() + '<p class="small muted">Questions, options and solutions are available in Hindi and English. You can switch at any time, even during the test; your answers stay as they are.</p>' : ''}
     <h3>Choose how to attempt</h3>
     <div class="modes">${modes.map(m => `<button class="btn ${m[0] === 'all' || m[0] === 'part1' ? 'pri' : ''}" data-mode="${esc(m[0])}">${esc(m[1])} · ${marksOf(m[2])} marks · ${minutesFor(P, m[2])} min</button>`).join('')}</div>
   </div>`;
@@ -665,7 +687,7 @@ function viewTest() {
   const grp = id => groups.find(g => g.sec.id === id);
   app.innerHTML = `
   <div class="tbar"><div><h2>${esc(P.title)}</h2><span class="muted small">${esc(modeLabel(P, A.mode))} · ${marksOf(qs)} marks · ${diffMix(qs).easy} Easy + ${diffMix(qs).medium} Medium${variantLabel(A) ? ` · <b>${esc(variantLabel(A))}</b>` : ''}</span></div>
-    <div style="display:flex;gap:10px;align-items:center"><span class="timer" id="timer">--:--:--</span><button class="btn pri" id="submit">Submit test</button></div></div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">${hasHindiQs(P) ? langPicker() : ''}<span class="timer" id="timer">--:--:--</span><button class="btn pri" id="submit">Submit test</button></div></div>
   <div class="tlayout"><div class="card" id="qbox"></div>
     <aside class="card pal"><h3>Question palette</h3><div id="palette"></div>
       <div id="pace" class="pace small"></div>
@@ -921,7 +943,7 @@ function viewResult(id) {
   const P = paperById(A.paperId);
   const S = subj(P.subject);
   app.innerHTML = `<div class="crumbs"><a href="#/">Subjects</a> › <a href="#/subject/${S.key}">${esc(S.name)}</a> › Result</div>
-    <h1>Result — ${esc(P.title)}</h1><div id="sum"></div><div id="rev"></div>`;
+    <h1>Result — ${esc(P.title)}</h1><div id="sum"></div>${hasHindiQs(P) ? langPicker() : ''}<div id="rev"></div>`;
   let filter = 'all';
   let aiState = null;   // null | 'run' | 'fail'
   const aiLive = () => location.hash === '#/result/' + A.id;
@@ -1095,9 +1117,9 @@ function viewResult(id) {
       const v = A.answers[q.id];
       tinfo.set(q.id, { q, attempted: isAns(v), got: counted ? got : null, ans: !isAns(v) ? '' : q.type === 'mcq' ? letter(mcqIdx(v)) + '. ' + AIG._text(q.options[mcqIdx(v)]) : String(v) });
       let body = '';
-      if (q.type === 'mcq') body = q.options.map((o, i) => `<div class="optr ${i === q.answer ? 'right' : ''} ${isAns(v) && mcqIdx(v) === i ? 'mine ' + (i === q.answer ? '' : 'wrong') : ''}"><b>${letter(i)}.</b> ${o} ${i === q.answer ? '✔ correct' : ''}${isAns(v) && mcqIdx(v) === i && i !== q.answer ? ' ✘ your answer' : ''}</div>`).join('');
-      else if (q.type === 'num') body = `<div class="your"><b>Your answer:</b> ${ansDisplay(q, v)}</div><div><b>Correct answer:</b> ${esc(q.accept[0])}</div>`;
-      else body = `<div class="your"><b>Your answer:</b>\n${ansDisplay(q, v)}</div>`;
+      if (q.type === 'mcq') body = q.options.map((o, i) => `<div class="optr ${i === q.answer ? 'right' : ''} ${isAns(v) && mcqIdx(v) === i ? 'mine ' + (i === q.answer ? '' : 'wrong') : ''}"><b>${letter(i)}.</b> ${o} ${i === q.answer ? T('✔ correct') : ''}${isAns(v) && mcqIdx(v) === i && i !== q.answer ? ' ' + T('✘ your answer') : ''}</div>`).join('');
+      else if (q.type === 'num') body = `<div class="your"><b>${T('Your answer:')}</b> ${ansDisplay(q, v)}</div><div><b>Correct answer:</b> ${esc(q.accept[0])}</div>`;
+      else body = `<div class="your"><b>${T('Your answer:')}</b>\n${ansDisplay(q, v)}</div>`;
       const manual = A.self && A.self[q.id] != null;
       const ai = A.ai && A.ai[q.id];
       const why = !auto ? '' : auto.kind === 'answer' ? `Matched ${fmt(auto.hit)} of ${auto.pts} final answer${auto.pts > 1 ? 's' : ''} in the model answer.` : `Covers ${fmt(auto.hit)} of ${auto.pts} key points of the model answer.`;
@@ -1111,8 +1133,8 @@ function viewResult(id) {
       return `<div class="card rev ${st} ${counted ? '' : 'extra'}"><div class="qhead"><div><span class="chip">Q${n}</span> ${diffChip(q)} ${src}${r.tracked ? ` <span class="chip gray" title="Time you spent on this question">⏱ ${dur(t)}</span>` : ''}${chg ? ` <span class="chip gray" title="Times you changed your answer">changed ${chg}×</span>` : ''}</div>
         <div>${extra} <span class="chip ${stCls}">${stLabel}</span> <b${counted || st === 'skip' ? '' : ' class="muted" title="Not added to your total"'}>${counted || st !== 'skip' ? fmt(got) : '–'} / ${q.marks}</b></div></div>
         <div class="qtext">${q.q}</div>${figHtml(q, true)}${body}${mark}
-        ${ai && !manual && (ai.fb || (ai.missing || []).length || (ai.steps || []).length) ? `<div class="aifb">${ai.fb ? `<div>${esc(ai.fb)}</div>` : ''}${(ai.steps || []).length ? `<div class="aisteps"><b>How to get full marks, step by step</b><ol>${ai.steps.map(x => `<li>${esc(x)}</li>`).join('')}</ol></div>` : ''}${(ai.missing || []).length ? `<div class="small muted">Not covered: ${ai.missing.map(esc).join('; ')}</div>` : ''}${ai.tip ? `<div class="aitip">💡 ${esc(ai.tip)}</div>` : ''}</div>` : ''}
-        <div class="sol"><b>${q.type === 'self' ? 'Model answer, step by step' : 'Solution'}:</b>${solHtml(q)}</div>
+        ${ai && !manual && (ai.fb || (ai.missing || []).length || (ai.steps || []).length) ? `<div class="aifb">${ai.fb ? `<div>${esc(ai.fb)}</div>` : ''}${(ai.steps || []).length ? `<div class="aisteps"><b>${T('How to get full marks, step by step')}</b><ol>${ai.steps.map(x => `<li>${esc(x)}</li>`).join('')}</ol></div>` : ''}${(ai.missing || []).length ? `<div class="small muted">${T('Not covered:')} ${ai.missing.map(esc).join('; ')}</div>` : ''}${ai.tip ? `<div class="aitip">💡 ${esc(ai.tip)}</div>` : ''}</div>` : ''}
+        <div class="sol"><b>${T(q.type === 'self' ? 'Model answer, step by step:' : 'Solution:')}</b>${solHtml(q)}</div>
         <div class="thost noprint" data-thost="${esc(q.id)}">${tutorHtml(q)}</div></div>`;
     }).join('') : '<div class="empty">Nothing in this filter.</div>';
     bindTutor(document.getElementById('rev'));
@@ -1135,7 +1157,7 @@ function viewHistory() {
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><a class="btn" href="#/progress">📈 Progress</a><button class="btn" id="csv">⬇ Export CSV</button></div>
     <div class="card"><div class="tscroll"><table><tr><th>Date</th><th>Paper</th><th>Score</th><th>Grade</th><th></th></tr>
     ${arr.map(a => { const P = paperById(a.paperId); const r = evaluate(a), g = gradeOf(r.pct);
-      return `<tr><td class="nowrap">${new Date(a.submittedAt).toLocaleString()}</td><td>${esc(P.title)}<div class="small muted">${esc(modeLabel(P, a.mode))}${variantLabel(a) ? ' · ' + esc(variantLabel(a)) : ''}</div></td><td class="nowrap">${fmt(r.got)} / ${r.total} (${fmt(r.pct)}%)</td><td>${g.label}${r.selfPending ? ' <span class="chip warn">needs your marks</span>' : ''}</td>
+      return `<tr><td class="nowrap">${new Date(a.submittedAt).toLocaleString(LOC())}</td><td>${esc(P.title)}<div class="small muted">${esc(modeLabel(P, a.mode))}${variantLabel(a) ? ' · ' + esc(variantLabel(a)) : ''}</div></td><td class="nowrap">${fmt(r.got)} / ${r.total} (${fmt(r.pct)}%)</td><td>${g.label}${r.selfPending ? ' <span class="chip warn">needs your marks</span>' : ''}</td>
       <td class="right nowrap"><a class="btn sm" href="#/result/${a.id}">View</a> <a class="btn sm" href="#/report/${a.id}">Report</a> <button class="btn sm danger" data-del="${a.id}">Delete</button></td></tr>`; }).join('')}</table></div></div>`
     : '<div class="card empty">You have not taken any test yet.<br><br><a class="btn pri" href="#/">Pick a subject</a></div>');
   const csv = document.getElementById('csv'); if (csv) csv.onclick = exportCSV;
@@ -1179,7 +1201,7 @@ function heatmap(days) {
   for (let w = 0; w < 53; w++) {
     let cells = '', label = '';
     for (let i = 0; i < 7; i++) {
-      if (i === 0 && d.getMonth() !== lastM) { lastM = d.getMonth(); label = d.toLocaleDateString(undefined, { month: 'short' }); }
+      if (i === 0 && d.getMonth() !== lastM) { lastM = d.getMonth(); label = d.toLocaleDateString(LOC(), { month: 'short' }); }
       if (d > end) cells += '<i class="hc off"></i>';
       else { const x = days[dayKey(d)], lv = !x ? 0 : Math.min(4, x.n); cells += `<i class="hc l${lv}" data-tip="${esc(dateStr(d) + '\n' + (x ? x.n + ' test' + (x.n > 1 ? 's' : '') + ' · ' + dur(x.secs) : 'No tests'))}"></i>`; }
       d.setDate(d.getDate() + 1);
@@ -1523,6 +1545,36 @@ AUTH.on(ev => {
   if (ev === 'data') { renderUserbox(); if (!/^#\/test/.test(location.hash)) route(true); }
 });
 window.addEventListener('storage', e => { if (e.key === 'ssc.session') location.reload(); });
+/* a newer deploy (tools/stamp-version.js writes version.json and the bw-version meta): load it, so no one keeps using old files.
+   Never in the middle of a test: then a note says it loads after you submit. Reloads once per version, so a stale cache cannot loop. */
+(function watchVersion() {
+  const mine = (document.querySelector('meta[name="bw-version"]') || {}).content;
+  if (!mine || !/^https?:$/.test(location.protocol)) return;
+  let newer = '', note = null;
+  const ssGet = k => { try { return sessionStorage.getItem(k); } catch (e) { return null; } };
+  const go = () => {
+    if (!newer || document.body.classList.contains('testing')) return showNote();
+    if (ssGet('bw_reloaded_for') === newer) return;
+    try { sessionStorage.setItem('bw_reloaded_for', newer); } catch (e) {}
+    location.reload();
+  };
+  const showNote = () => {
+    if (!newer || note) return;
+    note = document.createElement('div');
+    note.className = 'vnote noprint'; note.setAttribute('role', 'status');
+    note.innerHTML = 'A new version of BoardWise is ready. It loads when you finish this test. <button type="button" class="btn sm">Load it now</button>';
+    note.querySelector('button').onclick = () => { if (!document.body.classList.contains('testing') || confirm('Reload now? Your answers so far are saved and the timer keeps running.')) { try { sessionStorage.setItem('bw_reloaded_for', newer); } catch (e) {} location.reload(); } };
+    document.body.appendChild(note);
+  };
+  const check = now => fetch('version.json?t=' + Date.now(), { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(j => {
+    if (!j || !j.v || j.v === mine) return;
+    newer = j.v; if (now) go(); else showNote();
+  }).catch(() => {});
+  setTimeout(() => check(true), 2500);
+  setInterval(() => check(false), 15 * 60 * 1000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) check(true); });
+  window.addEventListener('hashchange', () => { if (newer) go(); });
+})();
 app.innerHTML = '<div class="empty">Loading…</div>';
 Promise.resolve(AUTH.init()).catch(() => {}).then(() => { ready = true; renderUserbox(); route(); });
 })();

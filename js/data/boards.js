@@ -9,7 +9,7 @@ window.BOARDS = [
     status: 'live', levels: [{ name: 'Class X (High School)', live: true }, { name: 'Class XII (Intermediate)' }], medium: 'Hindi medium', site: 'https://upmsp.edu.in/',
     blurb: 'Class X, Hindi medium: 10 mock tests each for Hindi, English, Sanskrit, Mathematics, Science and Social Science, in the layout of the official UPMSP 2026-27 model papers (70 marks: 20 OMR multiple-choice + 50 descriptive, 3 h 15 min). Class XII is planned.' },
   { key: 'upneet', name: 'UP Board Class XI · NEET', full: 'UP Board (UPMSP) Class XI — NCERT syllabus, NEET (UG) pattern', short: 'UP · NEET', state: 'Uttar Pradesh', color: '#be123c', icon: '🩺',
-    status: 'live', levels: [{ name: 'Class XI (NCERT)', live: true }], medium: 'English medium', site: 'https://neet.nta.nic.in/',
+    status: 'live', levels: [{ name: 'Class XI (NCERT)', live: true }], medium: 'Hindi + English medium', site: 'https://neet.nta.nic.in/',
     blurb: 'For NEET aspirants in Class XI: 10 NEET-pattern mock tests each for Physics, Chemistry, Biology (Botany + Zoology) and Mathematics, on every chapter of the NCERT Class XI books that UP Board follows. 4-option MCQs, +4 / −1, NEET timing.' },
   { key: 'mpbse', name: 'MP Board', full: 'Madhya Pradesh Board of Secondary Education (MPBSE)', short: 'Madhya Pradesh', state: 'Madhya Pradesh', color: '#0f9d6b', icon: '🐅',
     status: 'planned', levels: [{ name: 'Class X' }, { name: 'Class XII' }], medium: 'Hindi + English medium (planned)', site: 'https://mpbse.nic.in/',
