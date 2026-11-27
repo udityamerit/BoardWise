@@ -1095,7 +1095,7 @@ I18N.add({
   '<span><b>{1}</b> papers · <b>{2}</b> subjects</span><span>Open {3}</span>': '<span><b>{1}</b> प्रश्नपत्र · <b>{2}</b> विषय</span><span>खोलें {3}</span>',
   '<span>Papers are being written</span><span>Open {1}</span>': '<span>प्रश्नपत्र तैयार किए जा रहे हैं</span><span>खोलें {1}</span>',
   '{1} papers · {2} subjects': '{1} प्रश्नपत्र · {2} विषय', '<span>{1} papers · {2} subjects</span>': '<span>{1} प्रश्नपत्र · {2} विषय</span>',
-  '1 class available': '1 कक्षा उपलब्ध', '{1} classes available': '{1} कक्षाएँ उपलब्ध',
+  'Choose your class': 'अपनी कक्षा चुनें', '1 class available': '1 कक्षा उपलब्ध', '{1} classes available': '{1} कक्षाएँ उपलब्ध',
   '<b>{1}</b> marks': '<b>{1}</b> अंक', '{1} marks': '{1} अंक', '{1} papers': '{1} प्रश्नपत्र',
   'Planned. Papers will follow the board\'s own model paper.': 'प्रस्तावित। प्रश्नपत्र बोर्ड के अपने मॉडल प्रश्नपत्र के अनुसार होंगे।',
   'Pattern as reported (not verified)': 'बताया गया ढाँचा (सत्यापित नहीं)',

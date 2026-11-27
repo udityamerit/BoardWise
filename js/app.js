@@ -443,7 +443,7 @@ function route(keepScroll) {
   document.body.classList.toggle('authed', authed);
   document.body.classList.toggle('testing', authed && a === 'test');
   document.querySelectorAll('[data-nav]').forEach(el => el.classList.toggle('on',
-    (el.dataset.nav === 'home' && (!a || a === 'subject' || a === 'paper')) || (el.dataset.nav === 'boards' && (a === 'boards' || a === 'board' || a === 'track' || a === 'group')) || (el.dataset.nav === 'about' && a === 'about') || el.dataset.nav === a ||
+    (el.dataset.nav === 'home' && (!a || a === 'subject' || a === 'paper')) || (el.dataset.nav === 'boards' && (a === 'boards' || a === 'board' || a === 'track' || a === 'group' || a === 'class')) || (el.dataset.nav === 'about' && a === 'about') || el.dataset.nav === a ||
     (el.dataset.nav === 'progress' && a === 'report') || (el.dataset.nav === 'history' && a === 'result')));
   const onTab = document.querySelector('.topbar nav a.on');
   if (onTab && onTab.parentNode.scrollWidth > onTab.parentNode.clientWidth) onTab.parentNode.scrollLeft = onTab.offsetLeft - (onTab.parentNode.clientWidth - onTab.offsetWidth) / 2;
@@ -471,6 +471,7 @@ function route(keepScroll) {
   if (a === 'track') return viewTrack(b);
   if (a === 'board') return viewBoard(b);
   if (a === 'group') return viewGroup(b);
+  if (a === 'class') return viewClass(b);
   viewHome();
 }
 window.addEventListener('hashchange', () => route());
@@ -579,14 +580,17 @@ function viewTracks() {
   <p class="fineprint">All papers are original practice papers in each exam's own format, never copies of real board, NEET or JEE papers. Your results are visible only to you.</p>`;
 }
 
+/* "Class XI · Science" -> "XI": the big badge on a class card */
+const clsBadge = c => { const m = /Class\s+([IVX]+)/.exec(c || '') || /(Matric)/.exec(c || ''); return m ? (m[1] === 'Matric' ? 'X' : m[1]) : '•'; };
+/* a class card: opens the class page with its subjects (viewClass) */
 function liveTile(b) {
   const ss = boardSubjects(b.key), n = boardPapers(b.key).length;
-  return `<a class="tile" href="#/board/${b.key}" style="--c:${b.color}">
-    <div class="tile-head"><span class="tile-cls">${esc(b.medium)}</span>${b.key === ACTIVE ? '<span class="chip">Using now</span>' : '<span class="chip ok">Live</span>'}</div>
+  return `<a class="tile ccard" href="#/class/${b.key}" style="--c:${b.color}">
+    <div class="tile-head"><span class="cbadge">${esc(clsBadge(b.cls))}</span>${b.key === ACTIVE ? '<span class="chip">Using now</span>' : '<span class="chip ok">Live</span>'}</div>
     <h3>${esc(b.cls || b.name)}</h3>
-    <p class="muted small">${esc(b.blurb)}</p>
-    <div class="tile-subj">${ss.map(s => `<span>${esc(s.name)}</span>`).join('')}</div>
-    <div class="tile-foot"><span>${n} papers · ${ss.length} subjects</span><span class="go">Open ${ARROW}</span></div></a>`;
+    <div class="tile-cls">${esc(b.medium)}</div>
+    <div class="tile-subj">${ss.map(s => `<span>${s.icon} ${esc(s.name)}</span>`).join('')}</div>
+    <div class="tile-foot"><span><b>${n}</b> papers · <b>${ss.length}</b> subjects</span><span class="go">Open ${ARROW}</span></div></a>`;
 }
 const soonTile = (name, note, href) => `<${href ? `a href="${href}"` : 'div'} class="tile soon">
     <div class="tile-head"><span class="tile-cls">${esc(name)}</span><span class="chip gray">Coming soon</span></div>
@@ -622,16 +626,12 @@ function viewTrack(key) {
   ${t.pattern ? `<div class="card" style="margin-top:20px"><h3>Exam pattern</h3><ul class="clean">${t.pattern.map(x => `<li>${x}</li>`).join('')}</ul></div>` : ''}`;
 }
 
-/* One state board (UP, Maharashtra, MP, Bihar): each class that has papers, with its subjects as cards. A subject card opens that
-   subject's tests (#/subject/<key>); if it belongs to another class than the one in use, the router switches to it first. */
+/* Exams (3 track cards) › Board Preparation (a card per board) › a board (a card per class, viewGroup) › a class (a card per subject,
+   viewClass) › a subject's tests. A subject of another class than the one in use switches to it first (see route). */
 function viewGroup(key) {
   const g = groupOf(key); if (!g) return viewTrack('board');
   const t = trackOf('board'), bs = BOARDS.filter(b => b.group === g.key), live = bs.filter(b => b.status === 'live'), planned = bs.filter(b => b.status !== 'live');
-  const subjCard = s => `<a class="card subj" style="--c:${s.color}" href="#/subject/${s.key}">
-      <div class="subj-top"><span class="ic">${s.icon}</span>${s.stream ? `<span class="chip gray">${esc(s.stream)}</span>` : ''}</div>
-      <h3>${esc(s.name)}</h3>
-      <div class="muted small">${esc(s.blurb)}</div>
-      <div class="subj-foot"><span class="chip">${s.total} marks</span> <span class="chip gray">${s.papers} papers</span><span class="go">${ARROW}</span></div></a>`;
+  const soon = planned.flatMap(b => (b.levels || []).map(l => l.name)).concat(g.soon || []);
   app.innerHTML = `
   <div class="crumbs"><a href="#/boards">Exams</a> › <a href="#/track/${t.key}">${esc(t.name)}</a> › ${esc(g.name)}</div>
   <section class="track-hero" style="--c1:${g.color};--c2:${t.color2}">
@@ -639,17 +639,35 @@ function viewGroup(key) {
     <div><div class="track-tag">${live.length ? live.length + (live.length > 1 ? ' classes' : ' class') + ' available' : 'Coming soon'}</div><h1>${esc(g.name)}</h1>
       <p>${esc(g.full)} · <a href="${esc(g.site)}" target="_blank" rel="noopener noreferrer">${esc(g.site.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, ''))} ↗</a></p></div>
   </section>${resumeBanner()}
-  ${live.map(b => { const ss = boardSubjects(b.key); return `<section class="clsblock" id="cls-${b.key}">
-    <div class="cls-head"><h2>${esc(b.cls || b.name)}</h2><span class="chip">${esc(b.medium)}</span>${b.key === ACTIVE ? '<span class="chip ok">Using now</span>' : ''}
-      <span class="muted small">${boardPapers(b.key).length} papers · ${ss.length} subjects</span></div>
-    <p class="muted small">${esc(b.blurb)}</p>
-    <div class="grid g3">${ss.map(subjCard).join('')}</div></section>`; }).join('')}
-  ${planned.map(b => `<section class="clsblock"><div class="cls-head"><h2>${esc(b.cls || b.name)}</h2><span class="chip gray">Coming soon</span></div>
-    <div class="notice"><b>No papers yet.</b> Mock tests for this board are not built. When they are, they will be original practice papers in the board's own layout, labelled as mock tests, and never presented as past board papers.</div>
+  <h2 class="sec-h">Choose your class</h2>
+  <div class="tiles">${live.map(liveTile).join('')}${soon.map(c => soonTile(c, 'Planned. Papers will follow the board\'s own model paper.')).join('')}</div>
+  ${planned.map(b => `<div class="notice" style="margin-top:20px"><b>No papers yet.</b> Mock tests for this board are not built. When they are, they will be original practice papers in the board's own layout, labelled as mock tests, and never presented as past board papers.</div>
     ${(b.subjects || []).length ? `<div class="card"><h3>Planned subjects</h3><p>${b.subjects.map(x => `<span class="chip">${esc(x)}</span>`).join(' ')}</p>
-    ${(b.reported || []).length ? `<h3>Pattern as reported (not verified)</h3><ul class="clean">${b.reported.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}</div>` : ''}</section>`).join('')}
-  ${(g.soon || []).length ? `<h2 class="sec-h">Coming next</h2><div class="tiles">${g.soon.map(c => soonTile(c, 'Planned. Papers will follow the board\'s own model paper.')).join('')}</div>` : ''}
-  <p><a class="btn" href="#/track/${t.key}">‹ All boards</a></p>`;
+    ${(b.reported || []).length ? `<h3>Pattern as reported (not verified)</h3><ul class="clean">${b.reported.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}</div>` : ''}`).join('')}
+  <p style="margin-top:20px"><a class="btn" href="#/track/${t.key}">‹ All boards</a></p>`;
+}
+
+/* One class of a board (e.g. UP Board Class IX, or NEET Class XI): its subjects as cards, each opening that subject's tests. */
+function viewClass(key) {
+  const b = boardOf(key); if (!b || b.status !== 'live') return b ? viewBoard(key) : viewTrack('board');
+  const t = trackOf(b.track) || trackOf('board'), g = groupOf(b.group), ss = boardSubjects(b.key), streams = ss.some(s => s.stream);
+  app.innerHTML = `
+  <div class="crumbs"><a href="#/boards">Exams</a> › <a href="#/track/${t.key}">${esc(t.name)}</a>${g ? ` › <a href="#/group/${g.key}">${esc(g.name)}</a>` : ''} › ${esc(b.cls || b.name)}</div>
+  <section class="track-hero" style="--c1:${b.color};--c2:${t.color2}">
+    <span class="cbadge lg">${esc(clsBadge(b.cls))}</span>
+    <div><div class="track-tag">${esc(g ? g.name : b.name)} · ${esc(b.medium)}</div><h1>${esc(b.cls || b.name)}</h1><p>${esc(b.blurb)}</p></div>
+  </section>${resumeBanner()}
+  <div class="h-row"><h2>Choose a subject</h2>${streams ? `<div class="seg" role="group" aria-label="Stream">${[['all', 'All subjects'], ['PCM', 'Maths group (PCM)'], ['PCB', 'Biology group (PCB)']].map(([k, l], i) => `<button type="button" class="${i ? '' : 'on'}" data-stream="${k}" aria-pressed="${!i}">${l}</button>`).join('')}</div>` : ''}</div>
+  <div class="grid g2" id="subjgrid">${ss.map(s => `<a class="card subj" style="--c:${s.color}" href="#/subject/${s.key}" data-streams="${esc(s.stream || '')}">
+      <div class="subj-top"><span class="ic">${s.icon}</span>${s.stream ? `<span class="chip gray">${esc(s.stream)}</span>` : ''}</div>
+      <h3>${esc(s.name)}</h3>
+      <div class="muted small">${esc(s.blurb)}</div>
+      <div class="subj-foot"><span class="chip">${s.total} marks</span> <span class="chip gray">${s.papers} papers</span><span class="go">${ARROW}</span></div></a>`).join('')}</div>
+  <p style="margin-top:20px"><a class="btn" href="${g ? '#/group/' + g.key : '#/track/' + t.key}">‹ ${esc(g ? g.name : t.name)}</a></p>`;
+  app.querySelectorAll('[data-stream]').forEach(x => x.onclick = () => {
+    app.querySelectorAll('[data-stream]').forEach(y => { y.classList.toggle('on', y === x); y.setAttribute('aria-pressed', y === x); });
+    app.querySelectorAll('#subjgrid [data-streams]').forEach(c => { c.hidden = x.dataset.stream !== 'all' && !c.dataset.streams.includes(x.dataset.stream); });
+  });
 }
 
 function viewBoard(key) {
@@ -672,7 +690,7 @@ function viewSubject(key) {
   const s = subj(key); if (!s) return viewHome();
   const ps = PAPERS.filter(p => p.subject === key);
   app.innerHTML = `
-  <div class="crumbs">${boardTrail()} › <a href="#/">${esc((boardOf(ACTIVE) || {}).cls || 'Subjects')}</a> › ${esc(s.name)}</div>
+  <div class="crumbs">${boardTrail()} › <a href="#/class/${ACTIVE}">${esc((boardOf(ACTIVE) || {}).cls || 'Subjects')}</a> › ${esc(s.name)}</div>
   <h1>${s.icon} ${esc(s.name)}</h1>
   <p class="muted">${esc(s.blurb)}</p>
   ${resumeBanner()}
