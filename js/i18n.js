@@ -7,6 +7,7 @@
      - title / placeholder / aria-label attributes, alert / confirm / prompt messages and the tab title are translated the same way.
    Paper content is never touched: question text, options, solutions and answers (.qtext, .opt, .optr, .sol, …) stay in the paper's
    own medium (UP Board papers are in Hindi; the NEET papers have their own Hindi medium, see js/data/neet-hi.js).
+   The top bar (brand, menu, account) always stays in English: index.html marks it translate="no".
    The choice is kept on this device (localStorage bw_lang). With nothing chosen yet, UP Board and Bihar Board start in Hindi, other boards in English.
    I18N.t(text) translates a string; I18N.left() lists the English still on the page (to fill in the dictionary). */
 (function () {
