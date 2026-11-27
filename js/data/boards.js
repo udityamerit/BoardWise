@@ -5,6 +5,9 @@ window.BOARDS = [
   { key: 'msbshse', track: 'board', group: 'mh', cls: 'Class X · SSC', name: 'Maharashtra SSC', full: 'Maharashtra State Board (MSBSHSE)', short: 'Maharashtra', state: 'Maharashtra', color: '#3b4fd8', icon: '🏛️',
     status: 'live', levels: [{ name: 'Class X (SSC)', live: true }, { name: 'Class XII (HSC)' }], medium: 'English medium', site: 'https://www.mahahsscboard.in/',
     blurb: 'Class X: 10 mock tests each for Maths, Science, History & Political Science, English, Geography, Hindi and Marathi. Class XII is planned.' },
+  { key: 'up9', track: 'board', group: 'up', cls: 'Class IX', name: 'UP Board Class IX', full: 'Uttar Pradesh Madhyamik Shiksha Parishad (UPMSP) — Class IX', short: 'UP · Class IX', state: 'Uttar Pradesh', color: '#ea580c', icon: '📗',
+    status: 'live', levels: [{ name: 'Class IX', live: true }], medium: 'Hindi + English medium', site: 'https://upmsp.edu.in/',
+    blurb: 'Class IX, Hindi and English medium: 10 objective (MCQ) tests each for Science, Mathematics, Social Science, English, Hindi and Sanskrit, on the NCERT Class IX books that UP Board prescribes. Science, Maths and Social Science questions switch between Hindi and English.' },
   { key: 'upmsp', track: 'board', group: 'up', cls: 'Class X · High School', name: 'UP Board', full: 'Uttar Pradesh Madhyamik Shiksha Parishad (UPMSP)', short: 'Uttar Pradesh', state: 'Uttar Pradesh', color: '#d9480f', icon: '🪔',
     status: 'live', levels: [{ name: 'Class X (High School)', live: true }, { name: 'Class XII (Intermediate)' }], medium: 'Hindi medium', site: 'https://upmsp.edu.in/',
     blurb: 'Class X, Hindi medium: 10 mock tests each for Hindi, English, Sanskrit, Mathematics, Science and Social Science, in the layout of the official UPMSP 2026-27 model papers (70 marks: 20 OMR multiple-choice + 50 descriptive, 3 h 15 min). Class XII is planned.' },
@@ -53,8 +56,8 @@ window.TRACKS = [
       'The syllabus is the NCERT Class XI and XII books. Check the current information bulletin at <a href="https://jeemain.nta.nic.in/" target="_blank" rel="noopener noreferrer">jeemain.nta.nic.in</a>.'
     ] },
   { key: 'board', name: 'Board Preparation', tag: 'School board exams', color: '#4f46e5', color2: '#06b6d4',
-    blurb: 'Mock tests in your board’s own paper layout: Maharashtra SSC, UP Board Class X and UP Board Class XI science, with more boards on the way.',
-    points: ['Maharashtra SSC · UP Board', 'Class X and Class XI', 'Board-style marking and grades'] }
+    blurb: 'Mock tests in your board’s own paper layout: Maharashtra SSC, UP Board Class IX, Class X and Class XI science, with more boards on the way.',
+    points: ['Maharashtra SSC · UP Board', 'Class IX, X and XI', 'Board-style marking and grades'] }
 ];
 /* State boards on the Board page, each with its classes (live ones come from BOARDS; `soon` lists classes not built yet). */
 window.BOARD_GROUPS = [

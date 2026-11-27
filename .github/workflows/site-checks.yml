@@ -25,3 +25,5 @@ jobs:
         run: node tools/test-answers.js && node tools/test-choices.js
       - name: NEET Hindi medium is complete
         run: node tools/test-neet-hindi.js
+      - name: UP Board Class IX pack is complete (Hindi + English)
+        run: node tools/test-up9.js

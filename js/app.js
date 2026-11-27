@@ -248,8 +248,8 @@ function qsOf(A) {
 /* Hindi medium of the NEET-pattern papers (js/data/neet-hi.js). The student picks the question language: 'en', 'hi', or 'both'
    (Hindi with the English under it, as in the bilingual NEET paper). Default: the site's language. Only the text changes —
    options keep their order and marking is by option index, so an attempt can switch language at any time. */
-const hasHindiQs = P => !!(P && window.NL && NL.hiQ && (P.board === 'upneet' || P.board === 'up11'));
-const qlang = () => { const v = LS.get('bw_qlang', null); return v === 'en' || v === 'hi' || v === 'both' ? v : ACTIVE === 'up11' || (window.I18N && I18N.lang === 'hi') ? 'hi' : 'en'; };
+const hasHindiQs = P => !!(P && window.NL && NL.hiQ && (P.board === 'upneet' || P.board === 'up11' || P.bilingual || !!(window.SUBJECTS.find(s => s.key === P.subject) || {}).bilingual));
+const qlang = () => { const v = LS.get('bw_qlang', null); return v === 'en' || v === 'hi' || v === 'both' ? v : ACTIVE === 'up11' || ACTIVE === 'up9' || (window.I18N && I18N.lang === 'hi') ? 'hi' : 'en'; };
 function localQ(q, key) {
   const L = qlang(); if (L === 'en' || !window.NL || !NL.hiQ) return q;
   const h = NL.hiQ(key); if (!h) return q;

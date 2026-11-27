@@ -16,6 +16,7 @@ The site opens on three tracks: **NEET**, **JEE** and **Board** preparation.
 |---|---|---|---|---|
 | NEET | NEET (UG) pattern, +4 / −1 (Hindi / English) | XI | Physics, Chemistry, Biology, Maths | 10 per subject |
 | Board | Maharashtra SSC (English medium) | X | Maths, Science, History & Pol. Sci., Geography, English, Hindi, Marathi | 10 per subject |
+| Board | UP Board Class IX, MCQ (Hindi + English medium) | IX | Science, Maths, Social Science, English, Hindi, Sanskrit | 10 per subject |
 | Board | UP Board (UPMSP, Hindi medium) | X | Hindi, English, Sanskrit, Maths, Science, Social Science | 10 per subject |
 | Board | UP Board science, MCQ (Hindi medium) | XI | Physics, Chemistry, Maths (PCM), Biology (PCB) | 10 per subject |
 
@@ -88,10 +89,13 @@ node tools/validate.js
 node tools/test-neet-hindi.js
 ```
 ```powershell
+node tools/test-up9.js
+```
+```powershell
 node tools/mock-ai.mjs
 ```
 ```powershell
 node tools/stamp-version.js --check
 ```
 
-The **Site checks** GitHub workflow runs the validator, answer tests, Hindi check and version check on every push.
+The **Site checks** GitHub workflow runs the validator, answer tests, Hindi checks (NEET and Class IX) and version check on every push.
