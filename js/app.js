@@ -248,8 +248,8 @@ function qsOf(A) {
 /* Hindi medium of the NEET-pattern papers (js/data/neet-hi.js). The student picks the question language: 'en', 'hi', or 'both'
    (Hindi with the English under it, as in the bilingual NEET paper). Default: the site's language. Only the text changes —
    options keep their order and marking is by option index, so an attempt can switch language at any time. */
-const hasHindiQs = P => !!(P && window.NL && NL.hiQ && (P.board === 'upneet'));
-const qlang = () => { const v = LS.get('bw_qlang', null); return v === 'en' || v === 'hi' || v === 'both' ? v : (window.I18N && I18N.lang === 'hi' ? 'hi' : 'en'); };
+const hasHindiQs = P => !!(P && window.NL && NL.hiQ && (P.board === 'upneet' || P.board === 'up11'));
+const qlang = () => { const v = LS.get('bw_qlang', null); return v === 'en' || v === 'hi' || v === 'both' ? v : ACTIVE === 'up11' || (window.I18N && I18N.lang === 'hi') ? 'hi' : 'en'; };
 function localQ(q, key) {
   const L = qlang(); if (L === 'en' || !window.NL || !NL.hiQ) return q;
   const h = NL.hiQ(key); if (!h) return q;
@@ -434,7 +434,7 @@ function route(keepScroll) {
   document.body.classList.toggle('authed', authed);
   document.body.classList.toggle('testing', authed && a === 'test');
   document.querySelectorAll('[data-nav]').forEach(el => el.classList.toggle('on',
-    (el.dataset.nav === 'home' && (!a || a === 'subject' || a === 'paper')) || (el.dataset.nav === 'boards' && (a === 'boards' || a === 'board')) || (el.dataset.nav === 'about' && a === 'about') || el.dataset.nav === a ||
+    (el.dataset.nav === 'home' && (!a || a === 'subject' || a === 'paper')) || (el.dataset.nav === 'boards' && (a === 'boards' || a === 'board' || a === 'track')) || (el.dataset.nav === 'about' && a === 'about') || el.dataset.nav === a ||
     (el.dataset.nav === 'progress' && a === 'report') || (el.dataset.nav === 'history' && a === 'result')));
   const onTab = document.querySelector('.topbar nav a.on');
   if (onTab && onTab.parentNode.scrollWidth > onTab.parentNode.clientWidth) onTab.parentNode.scrollLeft = onTab.offsetLeft - (onTab.parentNode.clientWidth - onTab.offsetWidth) / 2;
@@ -458,7 +458,8 @@ function route(keepScroll) {
   if (a === 'progress') return viewProgress();
   if (a === 'report') return viewReport(b);
   if (a === 'pattern') return viewPattern(b);
-  if (a === 'boards') return viewBoards();
+  if (a === 'boards') return viewTracks();
+  if (a === 'track') return viewTrack(b);
   if (a === 'board') return viewBoard(b);
   viewHome();
 }
@@ -473,36 +474,40 @@ function resumeBanner() {
 }
 
 function viewHome() {
-  const BP = PAPERS.filter(p => bdOf(p) === ACTIVE), n = BP.length, done = attempts(), AB = boardOf(ACTIVE);
-  const real = BP.filter(p => p.kind === 'pyq').length;
+  const BP = PAPERS.filter(p => bdOf(p) === ACTIVE), n = BP.length, done = attempts(), AB = boardOf(ACTIVE), TR = AB && trackOf(AB.track);
+  const real = BP.filter(p => p.kind === 'pyq').length, streams = SUBJECTS.some(s => s.stream);
   app.innerHTML = `
+  <div class="crumbs"><a href="#/boards">Exams</a>${TR ? ` › <a href="#/track/${TR.key}">${esc(TR.name)}</a>` : ''} › ${esc(AB ? AB.name : 'Maharashtra SSC')}</div>
   <section class="hero">
-    ${student().name ? `<div class="small" style="opacity:.9;margin-bottom:6px">Welcome back, <b>${esc(student().name)}</b></div>` : ''}
-    <div class="small" style="opacity:.9;margin-bottom:6px">${esc(AB ? AB.name : 'Maharashtra SSC')} · ${esc(BOARD.level || 'Class X')}${BOARD.medium ? ' · ' + esc(BOARD.medium) : ''}</div>
+    ${student().name ? `<p class="eyebrow">Welcome back, <b>${esc(student().name)}</b></p>` : ''}
+    <div class="hero-meta"><span>${esc(AB ? AB.name : 'Maharashtra SSC')}</span>${AB && AB.name.includes(BOARD.level || 'Class X') ? '' : `<span>${esc(BOARD.level || 'Class X')}</span>`}${BOARD.medium ? `<span>${esc(BOARD.medium)}</span>` : ''}</div>
     <h1>${esc(BOARD.heroTitle || 'Practice in the real board format')}</h1>
-    <div class="small" style="margin:-4px 0 10px">${BOARDS.filter(b => b.status === 'live' && b.key !== ACTIVE).map(b => `<a href="#/board/${b.key}" style="color:#fff;text-decoration:underline;margin-right:14px">Switch to ${esc(b.name)} ›</a>`).join('')}<a href="#/boards" style="color:#fff;text-decoration:underline">All boards ›</a></div>
     <p>${esc(BOARD.heroText || 'Timed papers laid out like the board paper: same sections, "attempt any N" choices, marks and time. Instant marking, board-style grading, report cards and progress tracking.')} ${BOARD.heroText ? '' : 'Exams expected ' + esc(BOARD.examWindow) + '.'}</p>
     <div class="stats">
       <div class="stat"><b>${SUBJECTS.length}</b>subjects</div>
       <div class="stat"><b>${n}</b>papers available</div>
       <div class="stat"><b>${done.length}</b>tests taken by you</div>
-      <div class="stat"><b>🔥 ${streaks(done).cur}</b>day streak</div>
+      <div class="stat"><b>${streaks(done).cur}</b>day streak</div>
     </div>
-    <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap"><a class="btn pri" href="#/progress">📈 My progress & report cards</a><a class="btn" href="#/pattern">View paper pattern</a></div>
+    <div class="hero-act"><a class="btn pri" href="#/progress">My progress & report cards</a><a class="btn ghost" href="#/pattern">View paper pattern</a><a class="btn ghost" href="#/track/${TR ? TR.key : 'board'}">Change exam</a></div>
   </section>
   ${resumeBanner()}${legacyBanner()}
-  <div class="notice"><b>What the papers are:</b> <b>Mock tests</b> follow the real paper's format and are written from the textbook chapters with the question types and chapters examiners favour — they are not copies of any board paper.
-  ${real ? `<b>Previous-year</b> papers (${real} so far) are transcribed from public third-party copies and are labelled; they could not be checked against the board's own PDF.` : 'Previous-year papers will appear in their own tab as each is typed in and labelled.'} Every paper says which kind it is.</div>
-  <h2>Choose a subject</h2>
-  <div class="grid g2">
+  <div class="h-row"><h2>Choose a subject</h2>${streams ? `<div class="seg" role="group" aria-label="Stream">${[['all', 'All subjects'], ['PCM', 'Maths group (PCM)'], ['PCB', 'Biology group (PCB)']].map(([k, l], i) => `<button type="button" class="${i ? '' : 'on'}" data-stream="${k}" aria-pressed="${!i}">${l}</button>`).join('')}</div>` : ''}</div>
+  <div class="grid g2" id="subjgrid">
     ${SUBJECTS.map(s => `
-      <a class="card subj" style="--c:${s.color}" href="#/subject/${s.key}">
-        <div class="ic">${s.icon}</div>
+      <a class="card subj" style="--c:${s.color}" href="#/subject/${s.key}" data-streams="${esc(s.stream || '')}">
+        <div class="subj-top"><span class="ic">${s.icon}</span>${s.stream ? `<span class="chip gray">${esc(s.stream)}</span>` : ''}</div>
         <h3>${esc(s.name)}</h3>
         <div class="muted small">${esc(s.blurb)}</div>
-        <div style="margin-top:8px"><span class="chip">${s.total} marks</span> <span class="chip gray">${PAPERS.filter(p => p.subject === s.key).length} paper(s)</span></div>
+        <div class="subj-foot"><span class="chip">${s.total} marks</span> <span class="chip gray">${PAPERS.filter(p => p.subject === s.key).length} papers</span><span class="go">${ARROW}</span></div>
       </a>`).join('')}
-  </div>`;
+  </div>
+  <div class="notice soft"><b>What the papers are:</b> <b>Mock tests</b> follow the real paper's format and are written from the textbook chapters with the question types and chapters examiners favour — they are not copies of any board paper.
+  ${real ? `<b>Previous-year</b> papers (${real} so far) are transcribed from public third-party copies and are labelled; they could not be checked against the board's own PDF.` : 'Previous-year papers will appear in their own tab as each is typed in and labelled.'} Every paper says which kind it is.</div>`;
+  app.querySelectorAll('[data-stream]').forEach(b => b.onclick = () => {
+    app.querySelectorAll('[data-stream]').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', x === b); });
+    app.querySelectorAll('#subjgrid [data-streams]').forEach(c => { c.hidden = b.dataset.stream !== 'all' && !c.dataset.streams.includes(b.dataset.stream); });
+  });
 }
 
 /* ---------- about / author ---------- */
@@ -521,39 +526,95 @@ function viewAbout() {
     <p class="small muted">BoardWise is an independent project and is not affiliated with any examination board. Found a wrong answer or a typo? Open an issue on <a href="https://github.com/${esc(A.github || '')}/BoardWise/issues" target="_blank" rel="noopener noreferrer">GitHub</a>.</p></div>`;
 }
 
-/* ---------- boards ---------- */
+/* ---------- tracks (NEET / JEE / Board) and boards ---------- */
 const boardOf = k => BOARDS.find(b => b.key === k);
-function boardCard(b) {
-  const live = b.status === 'live';
-  return `<a class="card subj" style="--c:${b.color}" href="#/board/${b.key}">
-    <div class="ic">${b.icon}</div><h3>${esc(b.name)}</h3>
-    <div class="muted small">${esc(b.full)}</div>
-    <div class="muted small" style="margin-top:6px">${esc(b.blurb)}</div>
-    <div style="margin-top:8px"><span class="chip ${live ? 'ok' : 'gray'}">${live ? 'Live' : 'Coming soon'}</span> <span class="chip gray">${esc(b.medium)}</span>
-      <div style="margin-top:6px">${(b.levels || []).map(l => `<span class="chip ${l.live ? 'ok' : 'gray'}">${esc(l.name)}${l.live ? ' ✓' : ''}</span>`).join(' ')}</div>${live ? ` <span class="chip gray">${PAPERS.filter(p => bdOf(p) === b.key).length} papers</span>` : ''}${b.key === ACTIVE ? ' <span class="chip">Using now</span>' : ''}</div></a>`;
-}
-function viewBoards() {
+const TRACKS = window.TRACKS || [], GROUPS = window.BOARD_GROUPS || [];
+const trackOf = k => TRACKS.find(t => t.key === k);
+const ICONS = {
+  neet: '<path d="M5 3H4v6a5 5 0 0 0 10 0V3h-1"/><path d="M9 14v1a6 6 0 0 0 12 0v-3"/><circle cx="21" cy="10" r="2"/>',
+  jee: '<ellipse cx="12" cy="12" rx="10" ry="4"/><ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(60 12 12)"/><ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(120 12 12)"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/>',
+  board: '<path d="M2 9.5 12 5l10 4.5-10 4.5z"/><path d="M6 11.5V16c3.5 2.7 8.5 2.7 12 0v-4.5"/><path d="M22 9.5V15"/>'
+};
+const icon = (k, cls) => `<svg class="${cls || 'ico'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[k] || ''}</svg>`;
+const ARROW = '<svg class="arr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
+const boardPapers = k => PAPERS.filter(p => bdOf(p) === k);
+const boardSubjects = k => ALL_SUBJECTS.filter(s => bdOf(s) === k);
+const trackBoards = k => BOARDS.filter(b => b.track === k);
+const trackLive = k => trackBoards(k).filter(b => b.status === 'live');
+
+function viewTracks() {
+  const nm = student().name;
   app.innerHTML = `
   ${resumeBanner()}
-  <section class="hero"><h1>Choose your board</h1>
-    <p>BoardWise carries mock tests for more than one board, for Class X and Class XII. Maharashtra SSC Class X, UP Board (UPMSP) Class X in Hindi medium and NEET-pattern tests on the UP Board Class XI NCERT syllabus are live now; the rest are next. Each board and class gets its own papers, marking scheme, pass mark, grade bands and progress reports. Pick your board first: tapping a live board opens that board's subjects and papers (and only that board's).</p></section>
-  <div class="grid g2">${BOARDS.map(boardCard).join('')}</div>
-  <div class="notice"><b>Honest status:</b> Maharashtra SSC Class X, UP Board Class X (Hindi medium) and UP Board Class XI · NEET have papers today. The NEET-pattern papers are original practice questions written from the NCERT Class XI textbooks, not past NEET papers. For the other boards no question papers have been written yet, and no previous-year paper is claimed. The UP Board layout was read from the UPMSP's own 2026-27 syllabus and model papers; the patterns shown for the boards that are not live yet are what third-party sites report, not official figures.</div>
-  <h3>Later</h3><p class="muted">${BOARD_ROADMAP.map(x => `<span class="chip gray">${esc(x)}</span>`).join(' ')}</p>`;
+  <section class="hub">
+    <p class="eyebrow">${nm ? `Welcome back, <b>${esc(nm)}</b>` : 'Mock tests · marks · progress'}</p>
+    <h1>What are you preparing for?</h1>
+    <p class="lead">Choose a track. Each one has its own papers, marking scheme, grades and progress report.</p>
+  </section>
+  <div class="tracks">${TRACKS.map(t => {
+    const live = trackLive(t.key), np = live.reduce((a, b) => a + boardPapers(b.key).length, 0), ns = live.reduce((a, b) => a + boardSubjects(b.key).length, 0);
+    return `<a class="track" href="#/track/${t.key}" style="--c1:${t.color};--c2:${t.color2}">
+      <div class="track-top"><span class="track-ic">${icon(t.key)}</span><span class="chip ${live.length ? 'ok' : 'gray'}">${live.length ? 'Live' : 'Coming soon'}</span></div>
+      <div><div class="track-tag">${esc(t.tag)}</div><h2>${esc(t.name)}</h2></div>
+      <p>${esc(t.blurb)}</p>
+      <ul class="ticks">${(t.points || []).map(x => `<li>${esc(x)}</li>`).join('')}</ul>
+      <div class="track-foot"><span>${live.length ? `<b>${np}</b> papers · <b>${ns}</b> subjects` : 'Papers are being written'}</span><span class="go">${ARROW}</span></div>
+    </a>`; }).join('')}</div>
+  <p class="fineprint">All papers are original practice papers in each exam's own format, never copies of real board, NEET or JEE papers. Your results are visible only to you.</p>`;
 }
+
+function liveTile(b) {
+  const ss = boardSubjects(b.key), n = boardPapers(b.key).length;
+  return `<a class="tile" href="#/board/${b.key}" style="--c:${b.color}">
+    <div class="tile-head"><span class="tile-cls">${esc(b.medium)}</span>${b.key === ACTIVE ? '<span class="chip">Using now</span>' : '<span class="chip ok">Live</span>'}</div>
+    <h3>${esc(b.cls || b.name)}</h3>
+    <p class="muted small">${esc(b.blurb)}</p>
+    <div class="tile-subj">${ss.map(s => `<span>${esc(s.name)}</span>`).join('')}</div>
+    <div class="tile-foot"><span>${n} papers · ${ss.length} subjects</span><span class="go">Open ${ARROW}</span></div></a>`;
+}
+const soonTile = (name, note, href) => `<${href ? `a href="${href}"` : 'div'} class="tile soon">
+    <div class="tile-head"><span class="tile-cls">${esc(name)}</span><span class="chip gray">Coming soon</span></div>
+    ${note ? `<p class="muted small">${esc(note)}</p>` : ''}</${href ? 'a' : 'div'}>`;
+
+function viewTrack(key) {
+  const t = trackOf(key); if (!t) return viewTracks();
+  const head = `<div class="crumbs"><a href="#/boards">Exams</a> › ${esc(t.name)}</div>
+  <section class="track-hero" style="--c1:${t.color};--c2:${t.color2}">
+    <span class="track-ic lg">${icon(t.key)}</span>
+    <div><div class="track-tag">${esc(t.tag)}</div><h1>${esc(t.name)}</h1><p>${esc(t.blurb)}</p></div>
+  </section>${resumeBanner()}`;
+  if (key === 'board') {
+    app.innerHTML = head + GROUPS.map(g => {
+      const bs = BOARDS.filter(b => b.group === g.key), live = bs.filter(b => b.status === 'live'), planned = bs.filter(b => b.status !== 'live');
+      return `<section class="bgroup">
+        <div class="bgroup-head"><span class="abbr" style="--c:${g.color}">${esc(g.abbr)}</span>
+          <div><h2>${esc(g.name)}</h2><div class="muted small">${esc(g.full)}</div></div>
+          <a class="small site" href="${esc(g.site)}" target="_blank" rel="noopener noreferrer">${esc(g.site.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, ''))} ↗</a></div>
+        <div class="tiles">${live.map(liveTile).join('')}${planned.map(b => soonTile(b.cls || b.name, b.blurb, '#/board/' + b.key)).join('')}${(g.soon || []).map(c => soonTile(c, 'Planned. Papers will follow the board\'s own model paper.')).join('')}</div>
+      </section>`; }).join('') + `<p class="fineprint">Later: ${BOARD_ROADMAP.map(esc).join(' · ')}</p>`;
+    return;
+  }
+  const live = trackLive(key);
+  app.innerHTML = head + `
+  ${live.length ? `<h2 class="sec-h">Available now</h2><div class="tiles">${live.map(liveTile).join('')}</div>` : `<div class="info"><b>No papers yet.</b> ${esc(t.name)} tests are planned. Until then, the Physics, Chemistry and Mathematics tests in the other tracks cover the same Class XI NCERT chapters.</div>`}
+  ${(t.soon || []).length ? `<h2 class="sec-h">Coming next</h2><div class="tiles">${t.soon.map(s => soonTile(s.name, s.note)).join('')}</div>` : ''}
+  ${t.pattern ? `<div class="card" style="margin-top:20px"><h3>Exam pattern</h3><ul class="clean">${t.pattern.map(x => `<li>${x}</li>`).join('')}</ul></div>` : ''}`;
+}
+
 function viewBoard(key) {
-  const b = boardOf(key); if (!b) return viewBoards();
+  const b = boardOf(key); if (!b) return viewTracks();
   if (b.status === 'live') { if (switchBoard(b.key, '#/')) return; return go('#/'); }
+  const t = trackOf(b.track) || trackOf('board');
   app.innerHTML = `
-  <div class="crumbs"><a href="#/boards">Boards</a> › ${esc(b.name)}</div>
-  <h1>${b.icon} ${esc(b.name)} <span class="chip gray">Coming soon</span></h1>
+  <div class="crumbs"><a href="#/boards">Exams</a> › <a href="#/track/${t.key}">${esc(t.name)}</a> › ${esc(b.name)}</div>
+  <h1>${esc(b.name)} <span class="chip gray">Coming soon</span></h1>
   <p>${(b.levels || []).map(l => `<span class="chip">${esc(l.name)}</span>`).join(' ')}</p>
   <p class="muted">${esc(b.full)} · ${esc(b.medium)}</p>
   <div class="notice"><b>No papers yet.</b> Mock tests for this board are not built. When they are, they will be original practice papers in the board's own layout, labelled as mock tests, and never presented as past board papers.</div>
   <div class="card"><h3>Planned subjects</h3><p>${b.subjects.map(x => `<span class="chip">${esc(x)}</span>`).join(' ')}</p>
     <h3>Pattern as reported (not verified)</h3><ul class="clean">${b.reported.map(x => `<li>${esc(x)}</li>`).join('')}</ul>
     <p class="small muted">These points come from third-party education sites that disagree with each other. For the authoritative scheme use the board's own site: <a href="${esc(b.site)}" target="_blank" rel="noopener noreferrer">${esc(b.site.replace(/^https?:\/\//, ''))}</a>.</p></div>
-  <p><a class="btn" href="#/boards">‹ All boards</a> <a class="btn pri" href="#/">Open ${esc(boardOf(ACTIVE) ? boardOf(ACTIVE).name : 'Maharashtra SSC')} tests</a></p>`;
+  <p><a class="btn" href="#/track/${t.key}">‹ ${esc(t.name)}</a></p>`;
 }
 
 function viewSubject(key) {

@@ -1737,4 +1737,5 @@ db8bde9b|1 mL O₂
 d2ca4fb2|5 mL CO₂
 f7eeb3f7|40 mL CO₂
 4f142888|0.5 mL CO₂
+638bf153|Henle लूप की अवरोही भुजा की विशेषता है
 `);

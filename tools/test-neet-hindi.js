@@ -1,4 +1,4 @@
-/* Hindi medium of the NEET-pattern papers: checks that every question, option and solution of all 40 NEET papers comes out in Hindi,
+/* Hindi medium of the NEET-pattern papers: checks that every question, option and solution of all 40 NEET papers and the 40 UP Board Class XI papers (same question banks) comes out in Hindi,
    that the Hindi templates use the same {n} slots as their English, that no Hindi id is stale, and that the papers themselves
    (questions, option order, answers) are unchanged by the Hindi layer.
    Run: node tools/test-neet-hindi.js [--list N]  (prints up to N English pieces that still have no Hindi, most used first) */
@@ -9,15 +9,15 @@ const args = process.argv.slice(2), LIST = +(args[args.indexOf('--list') + 1] ||
 
 function load() {
   const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
-  const files = [...html.matchAll(/<script src="(js\/data\/(?:config|neet-[\w-]+)\.js)(?:\?[^"]*)?"/g)].map(m => m[1]);
+  const files = [...html.matchAll(/<script src="(js\/data\/(?:config|neet-[\w-]+|up11-build)\.js)(?:\?[^"]*)?"/g)].map(m => m[1]);
   const sb = { console, Math, JSON, Map, Set }; sb.window = sb; sb.PAPERS = []; sb.SUBJECTS = [];
   vm.createContext(sb);
   files.forEach(f => vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), sb, { filename: f }));
   return sb;
 }
 const W = load(), NL = W.NL;
-const papers = W.PAPERS.filter(p => p.board === 'upneet');
-if (papers.length !== 40) throw new Error('expected 40 NEET papers, found ' + papers.length);
+const papers = W.PAPERS.filter(p => p.board === 'upneet' || p.board === 'up11');
+if (papers.length !== 80) throw new Error('expected 80 papers (40 NEET + 40 UP Board Class XI), found ' + papers.length);
 
 /* log every piece NL.T cannot translate */
 const miss = new Map(), T0 = NL.T;
@@ -59,7 +59,7 @@ fs.readdirSync(path.join(ROOT, 'js/data')).filter(f => /^neet-hi-(?!tpl)[\w-]+\.
 const fp = papers.map(P => P.id + ':' + P.sections.map(s => s.questions.map(q => NL.hash(q.q + '¦' + q.options.join('¦') + '¦' + q.answer).toString(36)).join(',')).join(';')).join('\n');
 const FP = NL.hash(fp).toString(16);
 
-console.log(`NEET papers ${papers.length} · questions ${nq} · fully in Hindi ${full} (${(full / nq * 100).toFixed(1)}%)`);
+console.log(`NEET + UP Class XI papers ${papers.length} · questions ${nq} · fully in Hindi ${full} (${(full / nq * 100).toFixed(1)}%)`);
 console.log(`missing: question text ${badQ} · options ${badO} · solutions ${badS} · English pieces without Hindi ${miss.size}`);
 console.log(`Hindi lines: ${seen.size} · slot mismatches ${slotErr} · unused ids ${stale} · duplicate ids ${dup} · papers fingerprint ${FP}`);
 rec.slice(0, 30).forEach(r => console.log('  ! ' + r));

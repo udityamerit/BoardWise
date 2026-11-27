@@ -11,7 +11,7 @@
    I18N.t(text) translates a string; I18N.left() lists the English still on the page (to fill in the dictionary). */
 (function () {
 'use strict';
-const LSK = 'bw_lang', HI_BOARDS = ['upmsp', 'upneet', 'bseb'];
+const LSK = 'bw_lang', HI_BOARDS = ['upmsp', 'up11', 'upneet', 'bseb'];
 const get = k => { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } };
 let lang = get(LSK);
 if (lang !== 'hi' && lang !== 'en') lang = HI_BOARDS.includes(get('bw_board')) ? 'hi' : 'en';

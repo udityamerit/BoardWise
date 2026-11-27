@@ -8,15 +8,18 @@
 
 ---
 
-## Boards and papers
+## Exams and papers
 
-| Board | Class | Subjects | Mocks |
-|---|---|---|---|
-| Maharashtra SSC (English medium) | X | Maths, Science, History & Pol. Sci., Geography, English, Hindi, Marathi | 10 per subject |
-| UP Board (UPMSP, Hindi medium) | X | Hindi, English, Sanskrit, Maths, Science, Social Science | 10 per subject |
-| UP Board · NEET pattern | XI | Physics, Chemistry, Biology, Maths (English / हिन्दी) | 10 per subject |
+The site opens on three tracks: **NEET**, **JEE** and **Board** preparation.
 
-**Coming soon:** MP Board, Bihar Board, UP Class XII, CBSE / ICSE.
+| Track | Pack | Class | Subjects | Tests |
+|---|---|---|---|---|
+| NEET | NEET (UG) pattern, +4 / −1 (Hindi / English) | XI | Physics, Chemistry, Biology, Maths | 10 per subject |
+| Board | Maharashtra SSC (English medium) | X | Maths, Science, History & Pol. Sci., Geography, English, Hindi, Marathi | 10 per subject |
+| Board | UP Board (UPMSP, Hindi medium) | X | Hindi, English, Sanskrit, Maths, Science, Social Science | 10 per subject |
+| Board | UP Board science, MCQ (Hindi medium) | XI | Physics, Chemistry, Maths (PCM), Biology (PCB) | 10 per subject |
+
+**Coming soon:** JEE Main tests, MP Board, Bihar Board, UP Class XII, CBSE / ICSE.
 
 > All mocks are original practice papers written in each board's layout. They are not official board papers.
 

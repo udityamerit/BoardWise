@@ -16,7 +16,7 @@ const SOURCES = [
   ['js/app.js'], ['js/auth.js'], ['js/ai.js'], ['js/data/boards.js'], ['js/data/author.js'], ['js/data/config.js'],
   ['js/data/neet-config.js', s => s.slice(0, s.indexOf('/* ---------------- question-bank toolkit'))],
   ['js/data/neet-build.js'],
-  ['js/data/up-config.js']
+  ['js/data/up-config.js'], ['js/data/up11-build.js']
 ];
 const BLOCK = 'div|p|ul|ol|li|h[1-6]|table|thead|tbody|tr|td|th|button|label|section|aside|header|footer|nav|main|details|summary|select|option|textarea|input|form|fieldset|legend|dl|dt|dd|figure|figcaption|canvas|svg|img|hr|blockquote|pre|title|meta|link|script|style|iframe|video|audio|source|path|circle|line|rect|text|g|polyline';
 const INL = 'b|strong|i|em|a|span|small|sup|sub|u|mark|abbr|br|kbd|s|q|time';
