@@ -21,6 +21,7 @@ AI marking and the AI tutor run through a small Cloudflare Worker that holds the
 ## Roadmap
 
 * **Done:** Maharashtra SSC Class X, all seven subjects with 10 mocks each; **UP Board (UPMSP) Class X, Hindi medium**, six subjects (Hindi, English, Sanskrit, Maths, Science, Social Science) with 10 mocks each (`js/data/up-*.js`: 70-mark written paper, 3 h 15 min = 15 min reading + 3 h writing, pass 23/70; the 30 internal/practical marks are not tested). Passages and some question banks are original and recur across mocks, and written answers are self-marked (stated in each paper note); AI examiner (grader + cross-provider verifier); AI tutor on every reviewed question; weak-chapter practice sets; question-bank validator and mock-AI test harness (`tools/`).
+* **Done — UP Board Class XI · NEET** (`#/board/upneet`, `js/data/neet-*.js`): NEET (UG)-pattern mocks on the NCERT Class XI books that UP Board prescribes, for NEET aspirants — Physics (45 Q / 45 min), Chemistry (45 / 45), Biology (Botany 45 + Zoology 45 / 90 min) and Mathematics (45 / 60 min, NEET format although Maths is not a NEET subject); 10 mocks each, 4-option MCQs, +4 / −1. See "How the NEET-pattern mocks are made".
 * **Deferred (not started):** MP / Bihar board packs, UP Class XII, and Class XII / CBSE / ICSE.
 * **Not possible yet:** real past papers 2019–2024, which need a source that can be fetched and trusted (see "Adding a real paper").
 * **Boards section** (done, `js/data/boards.js`, `#/boards`): UP Board is live; MP Board and Bihar Board have their own pages marked *Coming soon*, with planned subjects and the pattern *as reported by third-party sites* (not verified). No papers exist for those two yet. Next step for each: verify the pattern against the board's own model paper, then build mocks.
@@ -106,6 +107,12 @@ The site is plain static files, so any static host works. Recommended: **Vercel*
 
 `js/data/lib.js` (helpers), `mm-alg.js` / `mm-geo.js` (question templates by chapter) and `mm-build.js` (assembly). Every question is built from a parameter table, and its answer, MCQ options and worked solution are computed from the same numbers, so they cannot disagree. Each paper follows the Q1–Q5 layout above for Algebra (Part 1) and Geometry (Part 2); templates rotate so mocks differ in topics and numbers. Validate with a Node script that loads the data files (marks per part, duplicate ids/texts, MCQ options).
 Limits: the templates cover Balbharati chapter topics but similar *types* repeat across mocks (different numbers); figure-based board questions are described in words; construction and proof questions are self-marked against the steps (everything else is auto-checked).
+
+### How the NEET-pattern mocks are made
+
+`js/data/neet-config.js` (board settings, subjects, chapter lists and the `NL` question toolkit), one question bank per subject (`neet-phy.js` 638 items, `neet-chem.js` 513, `neet-bot.js` 789, `neet-zoo.js` 774, `neet-maths.js` ≈566) and `neet-build.js`, which shuffles each chapter (seeded) and deals it across 10 mocks so every mock covers every chapter in proportion and no question is in two mocks. Numerical items are computed from parameter tables (answer, distractors and worked solution come from the same numbers); conceptual items follow recent NEET question types — direct, Assertion–Reason, two-statement, "how many are correct" and Match List-I/List-II. Chapters follow the rationalised NCERT Class XI textbooks (cross-checked with the Class 11 chapter lists on tiwariacademy.com); deleted topics are left out.
+
+The board sets `alwaysMix`: every attempt (the first one too) is rebuilt in `makeVariant` from the whole subject bank — each slot of the chosen mock is filled with an unseen question of the same section, difficulty and chapter from any of the 10 mocks — and the test screens show no "mix" label. Negative marking comes from `neg` on each question (`evaluate`).
 
 ## Paper layout (`window.SUBJECTS` in `js/data/config.js`)
 
