@@ -151,9 +151,11 @@ async function syncDown() {
     const list = await listAttempts();
     const p = await fs('GET', '/users/' + sess.uid + '/meta/profile').then(d => fieldJson(d), e => (e.status === 404 ? null : Promise.reject(e)));
     if (outbox.length) return;                  // something was saved while we were loading
+    const before = JSON.stringify([cache.attempts, cache.profile]);
     cache.attempts = sortAtt(list); resnap();
     if (p) cache.profile = Object.assign({}, cache.profile, p);
-    persist(); setState('synced'); emit('data');
+    persist(); setState('synced');
+    if (JSON.stringify([cache.attempts, cache.profile]) !== before) emit('data');   // re-draw the page only when the cloud copy differs
   } catch (e) { setState(e.status === 403 ? 'error' : 'offline'); }
 }
 
@@ -186,13 +188,20 @@ const AUTH = {
     if (!s || !s.uid) return;
     if ((MODE === 'firebase') !== !!s.refresh) { store.del('ssc.session'); return; }  // session from the other mode
     sess = s; loadLocal();
+    /* The page opens at once from this device's copy of the student's data; the token refresh and the cloud sync run in the
+       background (they used to hold the first page for up to 5 s). A newer cloud copy re-draws the page ('data'); a revoked
+       session signs out ('auth'). */
     if (MODE === 'firebase') {
-      try { await token(); }
-      catch (e) {
-        if (e.code && e.code !== 'NETWORK') { sess = null; store.del('ssc.session'); return; } // revoked / expired
-      }
-      const done = syncDown();
-      await Promise.race([done, new Promise(r => setTimeout(r, 5000))]);
+      (async () => {
+        try { await token(); }
+        catch (e) {
+          if (e.code && e.code !== 'NETWORK' && sess === s) {   // revoked / expired
+            sess = null; idTok = null; cache = { attempts: [], profile: {} }; outbox = []; snap = new Map();
+            store.del('ssc.session'); setState('idle'); emit('auth'); return;
+          }
+        }
+        if (sess === s) await syncDown();
+      })().catch(() => {});
     } else setState('local');
   },
 

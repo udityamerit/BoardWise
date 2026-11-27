@@ -10,6 +10,10 @@ const ROOT = path.join(__dirname, '..');
 const check = process.argv.includes('--check');
 const h = s => crypto.createHash('sha256').update(s).digest('hex').slice(0, 10);
 
+/* js/data/catalog.js (every board's subjects and paper counts) is generated from the question banks: refresh it first, so its stamp is current */
+const catalogStale = require('./build-catalog.js').run(check);
+if (check && catalogStale) { console.log('OUT OF DATE: js/data/catalog.js — run node tools/stamp-version.js'); process.exit(1); }
+
 const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 const missing = [], parts = [];
 let out = html.replace(/(<script\b[^>]*\bsrc="|<link\b[^>]*\brel="stylesheet"[^>]*\bhref=")((?:js|css)\/[^"?#]+)(?:\?v=[^"]*)?"/g, (m, pre, file) => {

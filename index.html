@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="bw-version" content="3de35a1667">
+<meta name="bw-version" content="cb4be2158c">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>BoardWise – Board-pattern mock tests &amp; progress reports</title>
 <meta name="description" content="BoardWise: timed, board-pattern mock tests with marking, grading, worked solutions and progress reports. NEET, JEE and board exam practice: Maharashtra SSC, UP Board Class X and Class XI science (Hindi medium) and NEET-pattern Class XI tests available now.">
@@ -18,7 +18,7 @@
 <meta property="og:description" content="Timed mock tests in the real board paper format, with marks, grades, worked solutions and progress tracking.">
 <meta property="og:image" content="https://udityamerit.github.io/BoardWise/assets/og-image.png">
 <meta name="twitter:card" content="summary_large_image">
-<link rel="stylesheet" href="css/style.css?v=eff43da5d3">
+<link rel="stylesheet" href="css/style.css?v=0f32862bf3">
 </head>
 <body>
 <header class="topbar" id="topbar" translate="no">
@@ -42,91 +42,109 @@
   </details>
 </footer>
 
-<!-- Data (order matters) -->
+<!-- Scripts, in the order they run. A script with data-for is one board's question bank: only the board the student is using
+     (localStorage bw_board, else Maharashtra SSC) is downloaded, instead of every board's papers (about 3 MB). The other boards'
+     subjects and paper counts come from js/data/catalog.js (written by node tools/stamp-version.js). Inside a <template> the tags
+     do not run; the loader below adds the ones this board needs, keeping their order (async = false). -->
+<template id="bw-scripts">
 <script src="js/data/config.js?v=05d7f520d3"></script>
-  <script src="js/data/boards.js?v=4d465245ff"></script>
-  <script src="js/data/author.js?v=8dca71b2a4"></script>
-<script src="js/data/lib.js?v=5cf70451dd"></script>
-<script src="js/data/maths.js?v=4ec8318140"></script>
-<script src="js/data/mm-alg.js?v=b73d782a95"></script>
-<script src="js/data/mm-geo.js?v=0a4b3f672a"></script>
-<script src="js/data/mm-build.js?v=479e3f94ad"></script>
-<script src="js/data/science.js?v=dcecb00485"></script>
-<script src="js/data/sci-lib.js?v=29a713189e"></script>
-<script src="js/data/sci-phy.js?v=d874678e8e"></script>
-<script src="js/data/sci-chem.js?v=1078dcf912"></script>
-<script src="js/data/sci-bio1.js?v=2a53421018"></script>
-<script src="js/data/sci-bio2.js?v=750bcc2bf6"></script>
-<script src="js/data/sci-env.js?v=90ca25aad1"></script>
-<script src="js/data/sci-build.js?v=f13fee91ef"></script>
-<script src="js/data/english.js?v=ecf3aaa0ed"></script>
-<script src="js/data/eng-1.js?v=a192a3b811"></script>
-<script src="js/data/eng-2.js?v=05d4408fff"></script>
-<script src="js/data/eng-3.js?v=ad69c1ae53"></script>
-<script src="js/data/eng-4.js?v=3a4e1771fb"></script>
-<script src="js/data/eng-build.js?v=f82efdeaf5"></script>
-<script src="js/data/social.js?v=18ea2bad0a"></script>
-<script src="js/data/hist-lib.js?v=1ba2dae2d3"></script>
-<script src="js/data/hist-1.js?v=06973241cc"></script>
-<script src="js/data/hist-2.js?v=9b8064328a"></script>
-<script src="js/data/hist-3.js?v=ae4c9e945f"></script>
-<script src="js/data/pol.js?v=4be3e48766"></script>
-<script src="js/data/hist-build.js?v=0027980c63"></script>
-<script src="js/data/geo-1.js?v=723b610a56"></script>
-<script src="js/data/geo-2.js?v=5c1f588e3b"></script>
-<script src="js/data/geo-3.js?v=2890602786"></script>
-<script src="js/data/geo-build.js?v=c4d7c5fd34"></script>
-<script src="js/data/hindi.js?v=2a30692461"></script>
-<script src="js/data/hin-1.js?v=c82c653666"></script>
-<script src="js/data/hin-2.js?v=8b7a14d1d7"></script>
-<script src="js/data/hin-3.js?v=b816e45c24"></script>
-<script src="js/data/hin-4.js?v=12b7958fd0"></script>
-<script src="js/data/hindi-build.js?v=9d188ef328"></script>
-<script src="js/data/marathi.js?v=5f9ea34742"></script>
-<script src="js/data/mar-1.js?v=f0c5aef9b6"></script>
-<script src="js/data/mar-2.js?v=cd0b5cd83e"></script>
-<script src="js/data/mar-3.js?v=fc6d44e734"></script>
-<script src="js/data/mar-4.js?v=ab9f401298"></script>
-<script src="js/data/marathi-build.js?v=3911cf5145"></script>
-<script src="js/data/up-config.js?v=79e096ef0b"></script>
-<script src="js/data/up-lib.js?v=77d55a3355"></script>
-<script src="js/data/up-maths.js?v=8c64fca3bc"></script>
-<script src="js/data/up-science.js?v=80884227be"></script>
-<script src="js/data/up-social.js?v=009af75f48"></script>
-<script src="js/data/up-english.js?v=76bbfd0051"></script>
-<script src="js/data/up-hindi.js?v=25ffd6bf40"></script>
-<script src="js/data/up-sanskrit.js?v=ae182f0b70"></script>
-<script src="js/data/neet-config.js?v=5d6cf8b089"></script>
-<script src="js/data/neet-phy.js?v=b9e8cd36f8"></script>
-<script src="js/data/neet-chem.js?v=0a0752fa3d"></script>
-<script src="js/data/neet-bot.js?v=81f0441972"></script>
-<script src="js/data/neet-zoo.js?v=b5186a529e"></script>
-<script src="js/data/neet-maths.js?v=338620ccbe"></script>
-<script src="js/data/neet-build.js?v=7200af88fc"></script>
-<script src="js/data/up11-build.js?v=7911bbc070"></script>
-<script src="js/data/neet-hi.js?v=43c5c1a787"></script>
-<script src="js/data/neet-hi-tpl.js?v=b60151d08f"></script>
-<script src="js/data/neet-hi-phy.js?v=c32c02e523"></script>
-<script src="js/data/neet-hi-chem.js?v=608fe64eea"></script>
-<script src="js/data/neet-hi-bot.js?v=6bd26dab54"></script>
-<script src="js/data/neet-hi-zoo.js?v=a085bd0be0"></script>
-<script src="js/data/neet-hi-maths.js?v=5c3f91da7a"></script>
-<script src="js/data/up9-lib.js?v=50754ef65f"></script>
-<script src="js/data/up9-sci.js?v=cd784b8f7d"></script>
-<script src="js/data/up9-maths.js?v=5c635a457e"></script>
-<script src="js/data/up9-sst.js?v=58cad3ce74"></script>
-<script src="js/data/up9-eng.js?v=cba14dff40"></script>
-<script src="js/data/up9-hindi.js?v=d610e46874"></script>
-<script src="js/data/up9-sanskrit.js?v=512ae1276f"></script>
-<script src="js/data/up9-build.js?v=fb215d8c40"></script>
+<script src="js/data/boards.js?v=4d465245ff"></script>
+<script src="js/data/author.js?v=8dca71b2a4"></script>
+<script src="js/data/catalog.js?v=ccf616ffe4"></script>
+<script src="js/data/lib.js?v=5cf70451dd" data-for="msbshse upmsp"></script>
+<script src="js/data/maths.js?v=4ec8318140" data-for="msbshse"></script>
+<script src="js/data/mm-alg.js?v=b73d782a95" data-for="msbshse"></script>
+<script src="js/data/mm-geo.js?v=0a4b3f672a" data-for="msbshse"></script>
+<script src="js/data/mm-build.js?v=479e3f94ad" data-for="msbshse"></script>
+<script src="js/data/science.js?v=dcecb00485" data-for="msbshse"></script>
+<script src="js/data/sci-lib.js?v=29a713189e" data-for="msbshse"></script>
+<script src="js/data/sci-phy.js?v=d874678e8e" data-for="msbshse"></script>
+<script src="js/data/sci-chem.js?v=1078dcf912" data-for="msbshse"></script>
+<script src="js/data/sci-bio1.js?v=2a53421018" data-for="msbshse"></script>
+<script src="js/data/sci-bio2.js?v=750bcc2bf6" data-for="msbshse"></script>
+<script src="js/data/sci-env.js?v=90ca25aad1" data-for="msbshse"></script>
+<script src="js/data/sci-build.js?v=f13fee91ef" data-for="msbshse"></script>
+<script src="js/data/english.js?v=ecf3aaa0ed" data-for="msbshse"></script>
+<script src="js/data/eng-1.js?v=a192a3b811" data-for="msbshse upmsp"></script>
+<script src="js/data/eng-2.js?v=05d4408fff" data-for="msbshse upmsp"></script>
+<script src="js/data/eng-3.js?v=ad69c1ae53" data-for="msbshse upmsp"></script>
+<script src="js/data/eng-4.js?v=3a4e1771fb" data-for="msbshse upmsp"></script>
+<script src="js/data/eng-build.js?v=f82efdeaf5" data-for="msbshse"></script>
+<script src="js/data/social.js?v=18ea2bad0a" data-for="msbshse"></script>
+<script src="js/data/hist-lib.js?v=1ba2dae2d3" data-for="msbshse"></script>
+<script src="js/data/hist-1.js?v=06973241cc" data-for="msbshse"></script>
+<script src="js/data/hist-2.js?v=9b8064328a" data-for="msbshse"></script>
+<script src="js/data/hist-3.js?v=ae4c9e945f" data-for="msbshse"></script>
+<script src="js/data/pol.js?v=4be3e48766" data-for="msbshse"></script>
+<script src="js/data/hist-build.js?v=0027980c63" data-for="msbshse"></script>
+<script src="js/data/geo-1.js?v=723b610a56" data-for="msbshse"></script>
+<script src="js/data/geo-2.js?v=5c1f588e3b" data-for="msbshse"></script>
+<script src="js/data/geo-3.js?v=2890602786" data-for="msbshse"></script>
+<script src="js/data/geo-build.js?v=c4d7c5fd34" data-for="msbshse"></script>
+<script src="js/data/hindi.js?v=2a30692461" data-for="msbshse"></script>
+<script src="js/data/hin-1.js?v=c82c653666" data-for="msbshse"></script>
+<script src="js/data/hin-2.js?v=8b7a14d1d7" data-for="msbshse"></script>
+<script src="js/data/hin-3.js?v=b816e45c24" data-for="msbshse"></script>
+<script src="js/data/hin-4.js?v=12b7958fd0" data-for="msbshse"></script>
+<script src="js/data/hindi-build.js?v=9d188ef328" data-for="msbshse"></script>
+<script src="js/data/marathi.js?v=5f9ea34742" data-for="msbshse"></script>
+<script src="js/data/mar-1.js?v=f0c5aef9b6" data-for="msbshse"></script>
+<script src="js/data/mar-2.js?v=cd0b5cd83e" data-for="msbshse"></script>
+<script src="js/data/mar-3.js?v=fc6d44e734" data-for="msbshse"></script>
+<script src="js/data/mar-4.js?v=ab9f401298" data-for="msbshse"></script>
+<script src="js/data/marathi-build.js?v=3911cf5145" data-for="msbshse"></script>
+<script src="js/data/up-config.js?v=79e096ef0b" data-for="upmsp"></script>
+<script src="js/data/up-lib.js?v=77d55a3355" data-for="upmsp"></script>
+<script src="js/data/up-maths.js?v=8c64fca3bc" data-for="upmsp"></script>
+<script src="js/data/up-science.js?v=80884227be" data-for="upmsp"></script>
+<script src="js/data/up-social.js?v=009af75f48" data-for="upmsp"></script>
+<script src="js/data/up-english.js?v=76bbfd0051" data-for="upmsp"></script>
+<script src="js/data/up-hindi.js?v=25ffd6bf40" data-for="upmsp"></script>
+<script src="js/data/up-sanskrit.js?v=ae182f0b70" data-for="upmsp"></script>
+<script src="js/data/neet-config.js?v=5d6cf8b089" data-for="upneet up11 up9"></script>
+<script src="js/data/neet-phy.js?v=b9e8cd36f8" data-for="upneet up11"></script>
+<script src="js/data/neet-chem.js?v=0a0752fa3d" data-for="upneet up11"></script>
+<script src="js/data/neet-bot.js?v=81f0441972" data-for="upneet up11"></script>
+<script src="js/data/neet-zoo.js?v=b5186a529e" data-for="upneet up11"></script>
+<script src="js/data/neet-maths.js?v=338620ccbe" data-for="upneet up11"></script>
+<script src="js/data/neet-build.js?v=7200af88fc" data-for="upneet up11"></script>
+<script src="js/data/up11-build.js?v=7911bbc070" data-for="up11"></script>
+<script src="js/data/neet-hi.js?v=43c5c1a787" data-for="upneet"></script>
+<script src="js/data/neet-hi-tpl.js?v=b60151d08f" data-for="upneet"></script>
+<script src="js/data/neet-hi-phy.js?v=c32c02e523" data-for="upneet"></script>
+<script src="js/data/neet-hi-chem.js?v=608fe64eea" data-for="upneet"></script>
+<script src="js/data/neet-hi-bot.js?v=6bd26dab54" data-for="upneet"></script>
+<script src="js/data/neet-hi-zoo.js?v=a085bd0be0" data-for="upneet"></script>
+<script src="js/data/neet-hi-maths.js?v=5c3f91da7a" data-for="upneet"></script>
+<script src="js/data/up9-lib.js?v=50754ef65f" data-for="up9"></script>
+<script src="js/data/up9-sci.js?v=cd784b8f7d" data-for="up9"></script>
+<script src="js/data/up9-maths.js?v=5c635a457e" data-for="up9"></script>
+<script src="js/data/up9-sst.js?v=58cad3ce74" data-for="up9"></script>
+<script src="js/data/up9-eng.js?v=cba14dff40" data-for="up9"></script>
+<script src="js/data/up9-hindi.js?v=d610e46874" data-for="up9"></script>
+<script src="js/data/up9-sanskrit.js?v=512ae1276f" data-for="up9"></script>
+<script src="js/data/up9-build.js?v=fb215d8c40" data-for="up9"></script>
 <script src="js/figures.js?v=94d4c5470c"></script>
 <script src="js/check.js?v=036eda2157"></script>
 <script src="js/ai.js?v=15e7dec28b"></script>
 <script src="js/data/backend.js?v=a2e4b5ead2"></script>
-<script src="js/auth.js?v=f8a9c874a2"></script>
+<script src="js/auth.js?v=4add91ffff"></script>
 <script src="js/i18n.js?v=7c1b982cd3"></script>
-<script src="js/i18n-hi.js?v=06a633f0cf"></script>
-<script src="js/i18n-en.js?v=c2c0b3e18f"></script>
-<script src="js/app.js?v=747eca3ecd"></script>
+<script src="js/i18n-hi.js?v=b3c726a484"></script>
+<script src="js/i18n-en.js?v=52498396d8"></script>
+<script src="js/app.js?v=5437ed4f2b"></script>
+</template>
+<script>
+(function () {
+  var t = document.getElementById('bw-scripts'), list = [].slice.call(t.content.querySelectorAll('script')), b = null;
+  try { b = JSON.parse(localStorage.getItem('bw_board')); } catch (e) {}
+  if (!list.some(function (s) { return (' ' + (s.getAttribute('data-for') || '') + ' ').indexOf(' ' + b + ' ') >= 0; })) b = 'msbshse';
+  list.forEach(function (s) {
+    var f = s.getAttribute('data-for');
+    if (f && (' ' + f + ' ').indexOf(' ' + b + ' ') < 0) return;
+    var x = document.createElement('script'); x.src = s.getAttribute('src'); x.async = false; document.body.appendChild(x);
+  });
+})();
+</script>
 </body>
 </html>

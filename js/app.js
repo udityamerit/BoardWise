@@ -18,13 +18,22 @@ const LS = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
 };
 const subj = k => ALL_SUBJECTS.find(s => s.key === k);
+/* Only the active board's question bank is loaded (see the loader in index.html). js/data/catalog.js lists every board's subjects and
+   paper ids, so the Exams pages can show the other boards and a link to one of their subjects, papers or results can switch to it. */
+const CAT = window.CATALOG || {};
+const catBoardOf = (field, id) => Object.keys(CAT).find(k => (CAT[k][field] || []).some(x => (x.key || x) === id)) || null;
+const boardOfSubject = k => { const s = subj(k); return s ? bdOf(s) : catBoardOf('subjects', k); };
+const boardOfPaper = id => {
+  const m = /^practice-([\w-]+)$/.exec(id || ''); if (m) return boardOfSubject(m[1]);
+  const P = PAPERS.find(p => p.id === id); return P ? bdOf(P) : catBoardOf('papers', id);
+};
 /* A new visit (new tab / fresh sign-in) starts on the Boards page: pick a board, then see that board's subjects. A page refresh must NOT do that, so
    the "already landed" flag lives in sessionStorage (survives a reload, gone in a new tab and cleared on sign-out). Any other page counts as landed. */
 const LAND = 'bw_landed';
 let landed = false; try { landed = sessionStorage.getItem(LAND) === '1'; } catch (e) {}
 const setLanded = on => { landed = on; try { on ? sessionStorage.setItem(LAND, '1') : sessionStorage.removeItem(LAND); } catch (e) {} };
 function switchBoard(key, hash) {
-  if (!BCFG[key] || key === ACTIVE) return false;
+  if (!(BCFG[key] || CAT[key]) || key === ACTIVE) return false;
   try { localStorage.setItem('bw_board', JSON.stringify(key)); } catch (e) {}
   if (hash != null) location.hash = hash;
   location.reload(); return true;
@@ -434,7 +443,7 @@ function route(keepScroll) {
   document.body.classList.toggle('authed', authed);
   document.body.classList.toggle('testing', authed && a === 'test');
   document.querySelectorAll('[data-nav]').forEach(el => el.classList.toggle('on',
-    (el.dataset.nav === 'home' && (!a || a === 'subject' || a === 'paper')) || (el.dataset.nav === 'boards' && (a === 'boards' || a === 'board' || a === 'track')) || (el.dataset.nav === 'about' && a === 'about') || el.dataset.nav === a ||
+    (el.dataset.nav === 'home' && (!a || a === 'subject' || a === 'paper')) || (el.dataset.nav === 'boards' && (a === 'boards' || a === 'board' || a === 'track' || a === 'group')) || (el.dataset.nav === 'about' && a === 'about') || el.dataset.nav === a ||
     (el.dataset.nav === 'progress' && a === 'report') || (el.dataset.nav === 'history' && a === 'result')));
   const onTab = document.querySelector('.topbar nav a.on');
   if (onTab && onTab.parentNode.scrollWidth > onTab.parentNode.clientWidth) onTab.parentNode.scrollLeft = onTab.offsetLeft - (onTab.parentNode.clientWidth - onTab.offsetWidth) / 2;
@@ -446,8 +455,8 @@ function route(keepScroll) {
   else if (!landed) { setLanded(true); return go('#/boards'); }
   /* a link to something that belongs to another board (a paper, a result, a running test) switches to that board first */
   { const A = (a === 'result' || a === 'report') ? rawAttempts().find(x => x.id === b) : a === 'test' ? active() : null;
-    const tg = a === 'paper' ? paperById(decodeURIComponent(b || '')) : a === 'subject' ? subj(b) : A ? paperById(A.paperId) : null;
-    if (tg && bdOf(tg) !== ACTIVE && switchBoard(bdOf(tg))) return; }
+    const tb = a === 'paper' ? boardOfPaper(decodeURIComponent(b || '')) : a === 'subject' ? boardOfSubject(b) : A ? boardOfPaper(A.paperId) : null;
+    if (tb && tb !== ACTIVE && switchBoard(tb)) return; }
   if (a === 'profile') return viewProfile();
   if (!a) return viewHome();
   if (a === 'subject') return viewSubject(b);
@@ -461,6 +470,7 @@ function route(keepScroll) {
   if (a === 'boards') return viewTracks();
   if (a === 'track') return viewTrack(b);
   if (a === 'board') return viewBoard(b);
+  if (a === 'group') return viewGroup(b);
   viewHome();
 }
 window.addEventListener('hashchange', () => route());
@@ -477,7 +487,7 @@ function viewHome() {
   const BP = PAPERS.filter(p => bdOf(p) === ACTIVE), n = BP.length, done = attempts(), AB = boardOf(ACTIVE), TR = AB && trackOf(AB.track);
   const real = BP.filter(p => p.kind === 'pyq').length, streams = SUBJECTS.some(s => s.stream);
   app.innerHTML = `
-  <div class="crumbs"><a href="#/boards">Exams</a>${TR ? ` › <a href="#/track/${TR.key}">${esc(TR.name)}</a>` : ''} › ${esc(AB ? AB.name : 'Maharashtra SSC')}</div>
+  <div class="crumbs">${boardTrail()} › ${esc(AB ? (AB.group ? AB.cls || AB.name : AB.name) : 'Maharashtra SSC')}</div>
   <section class="hero">
     ${student().name ? `<p class="eyebrow">Welcome back, <b>${esc(student().name)}</b></p>` : ''}
     <div class="hero-meta"><span>${esc(AB ? AB.name : 'Maharashtra SSC')}</span>${AB && AB.name.includes(BOARD.level || 'Class X') ? '' : `<span>${esc(BOARD.level || 'Class X')}</span>`}${BOARD.medium ? `<span>${esc(BOARD.medium)}</span>` : ''}</div>
@@ -489,7 +499,7 @@ function viewHome() {
       <div class="stat"><b>${done.length}</b>tests taken by you</div>
       <div class="stat"><b>${streaks(done).cur}</b>day streak</div>
     </div>
-    <div class="hero-act"><a class="btn pri" href="#/progress">My progress & report cards</a><a class="btn ghost" href="#/pattern">View paper pattern</a><a class="btn ghost" href="#/track/${TR ? TR.key : 'board'}">Change exam</a></div>
+    <div class="hero-act"><a class="btn pri" href="#/progress">My progress & report cards</a><a class="btn ghost" href="#/pattern">View paper pattern</a><a class="btn ghost" href="${AB && AB.group ? '#/group/' + AB.group : '#/track/' + (TR ? TR.key : 'board')}">Change exam</a></div>
   </section>
   ${resumeBanner()}${legacyBanner()}
   <div class="h-row"><h2>Choose a subject</h2>${streams ? `<div class="seg" role="group" aria-label="Stream">${[['all', 'All subjects'], ['PCM', 'Maths group (PCM)'], ['PCB', 'Biology group (PCB)']].map(([k, l], i) => `<button type="button" class="${i ? '' : 'on'}" data-stream="${k}" aria-pressed="${!i}">${l}</button>`).join('')}</div>` : ''}</div>
@@ -537,8 +547,14 @@ const ICONS = {
 };
 const icon = (k, cls) => `<svg class="${cls || 'ico'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[k] || ''}</svg>`;
 const ARROW = '<svg class="arr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
-const boardPapers = k => PAPERS.filter(p => bdOf(p) === k);
-const boardSubjects = k => ALL_SUBJECTS.filter(s => bdOf(s) === k);
+const boardPapers = k => (CAT[k] && CAT[k].papers) || PAPERS.filter(p => bdOf(p) === k).map(p => p.id);
+const boardSubjects = k => (CAT[k] && CAT[k].subjects) || ALL_SUBJECTS.filter(s => bdOf(s) === k).map(s => Object.assign({}, s, { papers: PAPERS.filter(p => p.subject === s.key).length }));
+const groupOf = k => GROUPS.find(g => g.key === k);
+/* Exams › Board Preparation › UP Board › Class IX — the trail to the board in use (its subjects page is #/) */
+function boardTrail() {
+  const AB = boardOf(ACTIVE), TR = AB && trackOf(AB.track), G = AB && groupOf(AB.group);
+  return `<a href="#/boards">Exams</a>${TR ? ` › <a href="#/track/${TR.key}">${esc(TR.name)}</a>` : ''}${G ? ` › <a href="#/group/${G.key}">${esc(G.name)}</a>` : ''}`;
+}
 const trackBoards = k => BOARDS.filter(b => b.track === k);
 const trackLive = k => trackBoards(k).filter(b => b.status === 'live');
 
@@ -584,14 +600,19 @@ function viewTrack(key) {
     <div><div class="track-tag">${esc(t.tag)}</div><h1>${esc(t.name)}</h1><p>${esc(t.blurb)}</p></div>
   </section>${resumeBanner()}`;
   if (key === 'board') {
-    app.innerHTML = head + GROUPS.map(g => {
-      const bs = BOARDS.filter(b => b.group === g.key), live = bs.filter(b => b.status === 'live'), planned = bs.filter(b => b.status !== 'live');
-      return `<section class="bgroup">
-        <div class="bgroup-head"><span class="abbr" style="--c:${g.color}">${esc(g.abbr)}</span>
-          <div><h2>${esc(g.name)}</h2><div class="muted small">${esc(g.full)}</div></div>
-          <a class="small site" href="${esc(g.site)}" target="_blank" rel="noopener noreferrer">${esc(g.site.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, ''))} ↗</a></div>
-        <div class="tiles">${live.map(liveTile).join('')}${planned.map(b => soonTile(b.cls || b.name, b.blurb, '#/board/' + b.key)).join('')}${(g.soon || []).map(c => soonTile(c, 'Planned. Papers will follow the board\'s own model paper.')).join('')}</div>
-      </section>`; }).join('') + `<p class="fineprint">Later: ${BOARD_ROADMAP.map(esc).join(' · ')}</p>`;
+    /* one card per state board; a card opens that board's page with every class and its subjects (viewGroup) */
+    app.innerHTML = head + `<h2 class="sec-h">Choose your board</h2>
+    <div class="bcards">${GROUPS.map(g => {
+      const live = BOARDS.filter(b => b.group === g.key && b.status === 'live');
+      const ns = live.reduce((a, b) => a + boardSubjects(b.key).length, 0), np = live.reduce((a, b) => a + boardPapers(b.key).length, 0);
+      return `<a class="bcard${live.length ? '' : ' soon'}" href="#/group/${g.key}" style="--c:${g.color}">
+        <div class="bcard-top"><span class="abbr">${esc(g.abbr)}</span>${live.some(b => b.key === ACTIVE) ? '<span class="chip">Using now</span>' : `<span class="chip ${live.length ? 'ok' : 'gray'}">${live.length ? 'Live' : 'Coming soon'}</span>`}</div>
+        <h3>${esc(g.name)}</h3>
+        <div class="muted small">${esc(g.full)}</div>
+        <div class="bcard-cls">${live.map(b => `<span>${esc(b.cls || b.name)}</span>`).join('')}${(g.soon || []).map(c => `<span class="later">${esc(c)}</span>`).join('')}</div>
+        <div class="tile-foot"><span>${live.length ? `<b>${np}</b> papers · <b>${ns}</b> subjects` : 'Papers are being written'}</span><span class="go">Open ${ARROW}</span></div>
+      </a>`; }).join('')}</div>
+    <p class="fineprint">Later: ${BOARD_ROADMAP.map(esc).join(' · ')}</p>`;
     return;
   }
   const live = trackLive(key);
@@ -599,6 +620,36 @@ function viewTrack(key) {
   ${live.length ? `<h2 class="sec-h">Available now</h2><div class="tiles">${live.map(liveTile).join('')}</div>` : `<div class="info"><b>No papers yet.</b> ${esc(t.name)} tests are planned. Until then, the Physics, Chemistry and Mathematics tests in the other tracks cover the same Class XI NCERT chapters.</div>`}
   ${(t.soon || []).length ? `<h2 class="sec-h">Coming next</h2><div class="tiles">${t.soon.map(s => soonTile(s.name, s.note)).join('')}</div>` : ''}
   ${t.pattern ? `<div class="card" style="margin-top:20px"><h3>Exam pattern</h3><ul class="clean">${t.pattern.map(x => `<li>${x}</li>`).join('')}</ul></div>` : ''}`;
+}
+
+/* One state board (UP, Maharashtra, MP, Bihar): each class that has papers, with its subjects as cards. A subject card opens that
+   subject's tests (#/subject/<key>); if it belongs to another class than the one in use, the router switches to it first. */
+function viewGroup(key) {
+  const g = groupOf(key); if (!g) return viewTrack('board');
+  const t = trackOf('board'), bs = BOARDS.filter(b => b.group === g.key), live = bs.filter(b => b.status === 'live'), planned = bs.filter(b => b.status !== 'live');
+  const subjCard = s => `<a class="card subj" style="--c:${s.color}" href="#/subject/${s.key}">
+      <div class="subj-top"><span class="ic">${s.icon}</span>${s.stream ? `<span class="chip gray">${esc(s.stream)}</span>` : ''}</div>
+      <h3>${esc(s.name)}</h3>
+      <div class="muted small">${esc(s.blurb)}</div>
+      <div class="subj-foot"><span class="chip">${s.total} marks</span> <span class="chip gray">${s.papers} papers</span><span class="go">${ARROW}</span></div></a>`;
+  app.innerHTML = `
+  <div class="crumbs"><a href="#/boards">Exams</a> › <a href="#/track/${t.key}">${esc(t.name)}</a> › ${esc(g.name)}</div>
+  <section class="track-hero" style="--c1:${g.color};--c2:${t.color2}">
+    <span class="abbr lg">${esc(g.abbr)}</span>
+    <div><div class="track-tag">${live.length ? live.length + (live.length > 1 ? ' classes' : ' class') + ' available' : 'Coming soon'}</div><h1>${esc(g.name)}</h1>
+      <p>${esc(g.full)} · <a href="${esc(g.site)}" target="_blank" rel="noopener noreferrer">${esc(g.site.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, ''))} ↗</a></p></div>
+  </section>${resumeBanner()}
+  ${live.map(b => { const ss = boardSubjects(b.key); return `<section class="clsblock" id="cls-${b.key}">
+    <div class="cls-head"><h2>${esc(b.cls || b.name)}</h2><span class="chip">${esc(b.medium)}</span>${b.key === ACTIVE ? '<span class="chip ok">Using now</span>' : ''}
+      <span class="muted small">${boardPapers(b.key).length} papers · ${ss.length} subjects</span></div>
+    <p class="muted small">${esc(b.blurb)}</p>
+    <div class="grid g3">${ss.map(subjCard).join('')}</div></section>`; }).join('')}
+  ${planned.map(b => `<section class="clsblock"><div class="cls-head"><h2>${esc(b.cls || b.name)}</h2><span class="chip gray">Coming soon</span></div>
+    <div class="notice"><b>No papers yet.</b> Mock tests for this board are not built. When they are, they will be original practice papers in the board's own layout, labelled as mock tests, and never presented as past board papers.</div>
+    ${(b.subjects || []).length ? `<div class="card"><h3>Planned subjects</h3><p>${b.subjects.map(x => `<span class="chip">${esc(x)}</span>`).join(' ')}</p>
+    ${(b.reported || []).length ? `<h3>Pattern as reported (not verified)</h3><ul class="clean">${b.reported.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}</div>` : ''}</section>`).join('')}
+  ${(g.soon || []).length ? `<h2 class="sec-h">Coming next</h2><div class="tiles">${g.soon.map(c => soonTile(c, 'Planned. Papers will follow the board\'s own model paper.')).join('')}</div>` : ''}
+  <p><a class="btn" href="#/track/${t.key}">‹ All boards</a></p>`;
 }
 
 function viewBoard(key) {
@@ -621,7 +672,7 @@ function viewSubject(key) {
   const s = subj(key); if (!s) return viewHome();
   const ps = PAPERS.filter(p => p.subject === key);
   app.innerHTML = `
-  <div class="crumbs"><a href="#/">Subjects</a> › ${esc(s.name)}</div>
+  <div class="crumbs">${boardTrail()} › <a href="#/">${esc((boardOf(ACTIVE) || {}).cls || 'Subjects')}</a> › ${esc(s.name)}</div>
   <h1>${s.icon} ${esc(s.name)}</h1>
   <p class="muted">${esc(s.blurb)}</p>
   ${resumeBanner()}
